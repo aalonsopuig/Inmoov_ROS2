@@ -1,0 +1,32 @@
+# Ignorar todo por defecto
+*
+
+# Incluir solo carpetas del proyecto
+!Arduino/
+!inmoov_ws/
+!piper/
+!docs/
+
+# Incluir archivos raíz del proyecto
+!README.md
+!LICENSE
+!.gitignore
+
+# Ignorar contenido no deseado dentro de esas carpetas
+Arduino/build/
+Arduino/**/__pycache__/
+Arduino/**/*.pyc
+
+inmoov_ws/build/
+inmoov_ws/install/
+inmoov_ws/log/
+inmoov_ws/**/__pycache__/
+inmoov_ws/**/*.pyc
+
+piper/output.wav
+piper/**/__pycache__/
+piper/**/*.pyc
+
+
+
+
