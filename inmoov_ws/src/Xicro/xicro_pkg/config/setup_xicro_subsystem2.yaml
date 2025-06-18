@@ -1,0 +1,34 @@
+microcontroller:
+  idmcu: 2 # id of mcu 
+  namespace: "subsys2" # namespace
+  generate_library_Path: "Arduino"  # path for generate library
+  connection:
+    type: "UART"   # ["UART","UDP"] 
+    serial_port: "/dev/serial/by-id/usb-Arduino__www.arduino.cc__0042_55332333230351803271-if00"  # for Serial UART Subsystem 2"
+    baudrate: 57620  # for UART
+    ip_address_mcu: ""  # for UDP example "192.168.1.xx"
+    udp_port_mcu: 0  # for UDP
+
+
+ros: # setup ros is reference from microcontroller example publisher is mean microcontroller publish to ros network
+  publisher:  [                           ]
+  subscriber: [
+    [1, "thumb_finger_L", "std_msgs/Int16.msg"],
+    [2, "index_finger_L", "std_msgs/Int16.msg"],
+    [3, "middle_finger_L", "std_msgs/Int16.msg"],
+    [4, "ring_finger_L", "std_msgs/Int16.msg"],
+    [5, "pinky_finger_L", "std_msgs/Int16.msg"],
+    [6, "bicep_L", "std_msgs/Int16.msg"],
+    [7, "rotate_L", "std_msgs/Int16.msg"],
+    [8, "shoulder_L", "std_msgs/Int16.msg"],
+    [9, "omoplate_L", "std_msgs/Int16.msg"],
+    [10, "neck", "std_msgs/Int16.msg"],
+    [11, "rothead", "std_msgs/Int16.msg"],
+    [12, "jaw", "std_msgs/Int16.msg"],
+    [13, "eye_x", "std_msgs/Int16.msg"],
+    [14, "eye_y", "std_msgs/Int16.msg"]
+  ]
+  srv_client: [                           ]
+  srv_server: [                           ]
+  action_client: [                        ]
+  action_server: [                        ]

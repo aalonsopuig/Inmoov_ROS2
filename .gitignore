@@ -1,32 +1,30 @@
-# Ignorar todo por defecto
+# .gitignore for Inmoov_ROS2 project (ROS 2-based humanoid robot control system)
+# This configuration allows tracking only the relevant project folders
+# while ignoring everything else in the user's home directory.
+
+# Ignore everything by default
 *
 
-# Incluir solo carpetas del proyecto
+# Allow specific folders and their contents (must include trailing slash + wildcard)
 !Arduino/
-!inmoov_ws/
-!piper/
-!docs/
+!Arduino/**
 
-# Incluir archivos raíz del proyecto
+!inmoov_ws/
+!inmoov_ws/**
+
+
+!piper/
+!piper/**
+
+!docs/
+!docs/**
+
+# Include project-level files
+!.gitignore
 !README.md
 !LICENSE
-!.gitignore
 
-# Ignorar contenido no deseado dentro de esas carpetas
-Arduino/build/
-Arduino/**/__pycache__/
-Arduino/**/*.pyc
-
+# Ignore intermediate files inside inmoov_ws (even though parent is allowed)
 inmoov_ws/build/
 inmoov_ws/install/
 inmoov_ws/log/
-inmoov_ws/**/__pycache__/
-inmoov_ws/**/*.pyc
-
-piper/output.wav
-piper/**/__pycache__/
-piper/**/*.pyc
-
-
-
-

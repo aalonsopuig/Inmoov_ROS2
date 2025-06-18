@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>inmoov_voice</name>
+  <version>0.1.0</version>
+
+  <!-- Descripción actualizada -->
+  <description>
+    ROS 2 package for speech synthesis with Piper and basic jaw actuation for the
+    InMoov robot. Fully offline, Spanish voice (es_ES-davefx-medium) invoked as an
+    external binary.
+  </description>
+
+  <maintainer email="aalonsopuig@gmail.com">Alejandro Alonso Puig</maintainer>
+  <license>Apache-2.0</license>
+
+  <!-- Únicas dependencias ROS 2 necesarias -->
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <!-- Python modules installed via pip -->
+  <exec_depend>python3-soundfile</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-sounddevice</exec_depend>
+
+  <!-- Dependencias de test (se mantienen) -->
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

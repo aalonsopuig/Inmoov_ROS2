@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro" name="inmoov_torso_rarm_hand">
+
+  <!-- Includes -->
+  <xacro:include filename="materials.urdf.xacro"/>
+  <xacro:include filename="config.joints.urdf.xacro"/>
+  <xacro:include filename="config.inertial.urdf.xacro"/>
+  <xacro:include filename="asmTorso.urdf.xacro"/>
+  <xacro:include filename="asmArm.urdf.xacro"/>
+  <xacro:include filename="asmHand.urdf.xacro"/>
+
+  <!-- Instanciar torso -->
+  <xacro:torso covers="true"/>
+
+  <!-- Instanciar brazo derecho -->
+  <xacro:arm side="r" flip="1" covers="true"/>
+
+  <!-- Instanciar mano derecha -->
+  <xacro:hand side="r" flip="1" covers="true"/>
+
+  <!-- Unión brazo derecho al torso -->
+  <joint name="r_shoulder_base_joint" type="fixed">
+    <origin xyz="0.06 -0.08 1.32" rpy="0 0 0"/>
+    <parent link="torso_link"/>
+    <child link="r_shoulder_base_link"/>
+  </joint>
+
+  <!-- Unión mano al antebrazo -->
+  <joint name="r_hand_joint" type="fixed">
+    <origin xyz="0 0 -0.25" rpy="0 0 0"/>
+    <parent link="r_forearm_link"/>
+    <child link="r_hand_link"/>
+  </joint>
+
+</robot>

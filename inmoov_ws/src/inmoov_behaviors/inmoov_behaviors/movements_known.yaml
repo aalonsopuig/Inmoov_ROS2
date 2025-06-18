@@ -1,0 +1,42 @@
+---
+# movements_known.yaml
+# Movement sequence for the right arm after recognizing a person
+# Location: ~/inmoov_ws/src/inmoov_behaviors/inmoov_behaviors/movements_known.yaml
+
+# 1) Close all fingers except the thumb and raise the bicep to 75º, then wait 2 s
+- delay: 2.0
+  servos:
+    thumb_finger_R: 0       # rest (thumb open)
+    index_finger_R: 85      # minimum (closed)
+    middle_finger_R: 70     # minimum (closed)
+    ring_finger_R: 80       # minimum (closed)
+    pinky_finger_R: 90      # minimum (closed)
+    bicep_R: 75             # indicated angle
+
+# 2) Open all fingers to rest position (0) and wait 2 s
+- delay: 2.0
+  servos:
+    thumb_finger_R: 0
+    index_finger_R: 0
+    middle_finger_R: 0
+    ring_finger_R: 0
+    pinky_finger_R: 0
+
+# 3) Close all fingers (minimum angle) and move bicep to rest (0), then wait 3 s
+- delay: 3.0
+  servos:
+    thumb_finger_R: 112     # minimum (closed)
+    index_finger_R: 85      # minimum (closed)
+    middle_finger_R: 70     # minimum (closed)
+    ring_finger_R: 80       # minimum (closed)
+    pinky_finger_R: 90      # minimum (closed)
+    bicep_R: 0              # rest
+
+# 4) Move fingers to rest position (0) and wait 1 s
+- delay: 1.0
+  servos:
+    thumb_finger_R: 0
+    index_finger_R: 0
+    middle_finger_R: 0
+    ring_finger_R: 0
+    pinky_finger_R: 0

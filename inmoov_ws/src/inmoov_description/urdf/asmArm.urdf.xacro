@@ -1,0 +1,130 @@
+<?xml version="1.0"?>
+
+<robot name="inmoov" xmlns:xacro="http://ros.org/wiki/xacro">
+
+<xacro:macro name="arm" params="side flip covers">
+
+  <link name="${side}_shoulder_base_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://inmoov_meshes/meshes/${side}_shoulder_base.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <xacro:frame_color/>
+    </visual>
+    <xacro:if value="${side == 'l'}">
+      <xacro:l_shoulder_base_inertial/>
+    </xacro:if>
+    <xacro:if value="${side == 'r'}">
+      <xacro:r_shoulder_base_inertial/>
+    </xacro:if>
+  </link>
+
+  <link name="${side}_shoulder_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://inmoov_meshes/meshes/${side}_shoulder.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <xacro:frame_color/>
+    </visual>
+    <xacro:if value="${side == 'l'}">
+      <xacro:l_shoulder_inertial/>
+    </xacro:if>
+    <xacro:if value="${side == 'r'}">
+      <xacro:r_shoulder_inertial/>
+    </xacro:if>
+  </link>
+
+  <link name="${side}_bicep_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://inmoov_meshes/meshes/bicep.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <xacro:frame_color/>
+    </visual>
+    <xacro:bicep_inertial/>
+  </link>
+
+  <link name="${side}_bicepcover_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://inmoov_meshes/meshes/bicepcover.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <xacro:cover_color/>
+    </visual>
+    <xacro:bicepcover_inertial/>
+  </link>
+
+  <link name="${side}_forearm_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://inmoov_meshes/meshes/${side}_forearm.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="${flip * 0.001} 0 0"/>
+      <xacro:cover_color/>
+    </visual>
+    <xacro:if value="${side == 'l'}">
+      <xacro:l_forearm_inertial/>
+    </xacro:if>
+    <xacro:if value="${side == 'r'}">
+      <xacro:r_forearm_inertial/>
+    </xacro:if>
+  </link>
+
+  <joint name="${side}_shoulder_lift_joint" type="revolute">
+    <axis xyz="0 1 0"/>
+    <xacro:if value="${side == 'l'}">
+      <limit effort="1000.0" lower="${l_shoulder_lift_joint_lower}" upper="${l_shoulder_lift_joint_upper}" velocity="${l_shoulder_lift_joint_velocity}" />
+    </xacro:if>
+    <xacro:if value="${side == 'r'}">
+      <limit effort="1000.0" lower="${r_shoulder_lift_joint_lower}" upper="${r_shoulder_lift_joint_upper}" velocity="${r_shoulder_lift_joint_velocity}" />
+    </xacro:if>
+    <origin rpy="0 0 0" xyz="0 ${flip * -0.012} -0.04"/>
+    <parent link="${side}_shoulder_base_link"/>
+    <child link="${side}_shoulder_link"/>
+  </joint>
+
+  <joint name="${side}_upper_arm_roll_joint" type="revolute">
+    <axis xyz="0 0 1"/>
+    <xacro:if value="${side == 'l'}">
+      <limit effort="1000.0" lower="${l_upper_arm_roll_joint_lower}" upper="${l_upper_arm_roll_joint_upper}" velocity="${l_upper_arm_roll_joint_velocity}" />
+    </xacro:if>
+    <xacro:if value="${side == 'r'}">
+      <limit effort="1000.0" lower="${r_upper_arm_roll_joint_lower}" upper="${r_upper_arm_roll_joint_upper}" velocity="${r_upper_arm_roll_joint_velocity}" />
+    </xacro:if>
+    <origin rpy="0 0 0" xyz="0 ${flip * -0.066} -0.060"/>
+    <parent link="${side}_shoulder_link"/>
+    <child link="${side}_bicep_link"/>
+  </joint>
+
+  <joint name="${side}_elbow_flex_joint" type="revolute">
+    <axis xyz="0 1 0"/>
+    <xacro:if value="${side == 'l'}">
+      <limit effort="1000.0" lower="${l_elbow_flex_joint_lower}" upper="${l_elbow_flex_joint_upper}" velocity="${l_elbow_flex_joint_velocity}" />
+    </xacro:if>
+    <xacro:if value="${side == 'r'}">
+      <limit effort="1000.0" lower="${r_elbow_flex_joint_lower}" upper="${r_elbow_flex_joint_upper}" velocity="${r_elbow_flex_joint_velocity}" />
+    </xacro:if>
+    <origin rpy="0 0 0" xyz="-0.0278 0 -0.2235"/>
+    <parent link="${side}_bicep_link"/>
+    <child link="${side}_forearm_link"/>
+  </joint>
+
+  <joint name="${side}_bicepcover_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="0 0 0"/>
+    <parent link="${side}_bicep_link"/>
+    <child link="${side}_bicepcover_link"/>
+  </joint>
+
+
+
+
+
+</xacro:macro>
+
+
+
+</robot>

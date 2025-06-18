@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>inmoov_meshes</name>
+  <version>0.1.0</version>
+  <description>Mesh files for InMoov robot</description>
+  <maintainer email="grey@todo.todo">grey</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <export>
+  </export>
+</package>

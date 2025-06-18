@@ -1,0 +1,30 @@
+¡Hola <nombre>! Me alegra verte.  
+¡Qué gusto coincidir contigo, <nombre>.  
+Un placer volver a encontrarte, <nombre>.  
+Saludos, <nombre>, gracias por estar aquí.  
+¡<nombre>! Siempre es un placer verte.  
+Me encanta verte por aquí, <nombre>.  
+¡<nombre>! Gracias por acompañarnos de nuevo.  
+Qué alegría verte, <nombre>.  
+Encantado de verte, <nombre>.  
+Un gusto verte otra vez, <nombre>.  
+¡<nombre>! Me alegra tu presencia.  
+Gracias por estar aquí, <nombre>.  
+¡<nombre>! Tu presencia anima el lugar.  
+Qué bien coincidir contigo, <nombre>.  
+¡<nombre>! Es un placer verte nuevamente.  
+Me alegra tu regreso, <nombre>.  
+Disfruto viéndote, <nombre>.  
+¡<nombre>! Gracias por tu compañía.  
+Es un gusto reencontrarte, <nombre>.  
+¡<nombre>! Tu visita me hace feliz.  
+Encantado de verte otra vez, <nombre>.  
+¡<nombre>! Siempre es un placer contar contigo.  
+Qué alegría tenerte de nuevo, <nombre>.  
+¡<nombre>! Me llena de alegría verte.  
+Gracias por volver, <nombre>.  
+¡<nombre>! Tu presencia es un regalo.  
+Un placer verte aquí, <nombre>.  
+¡<nombre>! Me hace feliz tu regreso.  
+Encantado de verte, <nombre>.  
+Qué gusto contar contigo, <nombre>.  

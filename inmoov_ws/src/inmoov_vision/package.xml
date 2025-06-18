@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>inmoov_vision</name>
+  <version>0.1.0</version>
+  <description>
+    ROS 2 nodes and utilities for face detection and recognition in the InMoov robot,
+    using OpenCV for tracking and Dlib for person identification. Includes scripts for
+    dataset creation, embedding generation, and modular launch files.
+  </description>
+
+  <maintainer email="aalonsopuig@gmail.com">Alejandro Alonso Puig</maintainer>
+  <license>Apache License 2.0</license>
+
+  <!-- Main ROS 2 and message dependencies -->
+  <depend>rclpy</depend>
+  <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
+
+  <!-- Build tool for Python packages -->
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <!-- Test and quality tools -->
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <!-- Repository or project website -->
+  <url type="website">https://github.com/aalonsopuig</url>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

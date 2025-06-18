@@ -1,0 +1,62 @@
+<?xml version="1.0"?>
+
+<robot name="inmoov" xmlns:xacro="http://ros.org/wiki/xacro">
+
+<xacro:include filename="$(find inmoov_description)/urdf/asmEye.urdf.xacro" />
+
+<xacro:macro name="face" params="covers">
+
+  <link name="face_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://inmoov_meshes/meshes/face.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <xacro:cover_color/>
+    </visual>
+    <xacro:face_inertial/>
+  </link>
+
+  <joint name="eyes_tilt_joint" type="revolute">
+   <axis xyz="0 1 0"/>
+   <limit effort="1000.0" lower="${eyes_tilt_joint_lower}" upper="${eyes_tilt_joint_upper}" velocity="${eyes_tilt_joint_velocity}" />
+   <origin rpy="0 0 0" xyz="0 0 0"/>
+   <parent link="face_link"/>
+   <child link="eyesupport_link"/>
+  </joint>
+
+  <link name="eyesupport_link">
+    <visual>
+      <geometry>
+        <mesh filename="package://inmoov_meshes/meshes/eyesupport.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <xacro:frame_color/>
+    </visual>
+    <xacro:eyesupport_inertial/>
+  </link>
+
+<xacro:asmEye side="r"/>
+
+  <joint name="eyes_pan_joint" type="revolute">
+   <axis xyz="0 0 1"/>
+    <limit effort="1000.0" lower="${eyes_pan_joint_lower}" upper="${eyes_pan_joint_upper}" velocity="${eyes_pan_joint_velocity}" />
+   <origin rpy="0 0 0" xyz="0 0.033 -0.0036"/>
+   <parent link="eyesupport_link"/>
+   <child link="r_eyesupport_link"/>
+  </joint>
+
+<xacro:asmEye side="l" />
+
+  <joint name="l_eye_pan_joint" type="revolute">
+   <axis xyz="0 0 1"/>
+   <limit effort="1000.0" lower="${eyes_pan_joint_lower}" upper="${eyes_pan_joint_upper}" velocity="${eyes_pan_joint_velocity}" />
+   <mimic joint="eyes_pan_joint" multiplier="1" offset="0"/>
+   <origin rpy="0 0 0" xyz="0 -0.033 -0.0036"/>
+   <parent link="eyesupport_link"/>
+   <child link="l_eyesupport_link"/>
+  </joint>
+
+</xacro:macro>
+
+</robot>

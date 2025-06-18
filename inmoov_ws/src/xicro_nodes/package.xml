@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>xicro_nodes</name>
+  <version>0.1.0</version>
+  <description>ROS 2 package for XICRO communication nodes between ROS 2 and Arduino in the InMoov robot. Includes nodes for subsystem 1 (right arm) and subsystem 2 (left arm and head).</description>
+  <maintainer email="todo@todo.com">Alejandro Alonso Puig</maintainer>
+  <license>Apache-2.0</license>
+
+  <!-- Runtime dependencies for Python ROS2 nodes and standard messages -->
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+
+  <!-- Optional Python/test dependencies -->
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
