@@ -17,16 +17,16 @@ Main features:
 
 ## Repository Structure
 
-Arduino/        -> Code for the two Arduino-based subsystems
-inmoov_ws/      -> ROS 2 workspace containing all custom packages
-piper/          -> Local speech synthesis system
-docs/           -> Technical documentation (hardware, configuration, usage)
+Arduino/        -> Code for the two Arduino-based subsystems<br>
+inmoov_ws/      -> ROS 2 workspace containing all custom packages<br>
+piper/          -> Local speech synthesis system<br>
+docs/           -> Technical documentation (hardware, configuration, usage)<br>
 
 ## Quick Start
 
-cd inmoov_ws
-colcon build
-source install/setup.bash
+cd inmoov_ws<br>
+colcon build<br>
+source install/setup.bash<br>
 
 All nodes are designed to run offline in a local ROS 2 environment.
 
