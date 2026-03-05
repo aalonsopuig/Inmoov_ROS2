@@ -1,7 +1,7 @@
-Welcome to the **InMoov ROS2 Project** wiki. This project builds upon the open-source InMoov humanoid robot platform, originally designed by [Gaël Langevin](https://inmoov.fr/), integrating it with ROS 2 (specifically the Jazzy Jalisco distribution) to create a modular, autonomous system capable of vision, speech, and interactive behaviors.
+Welcome to the **InMoov ROS2 Project**. This project builds upon the open-source InMoov humanoid robot platform, originally designed by [Gaël Langevin](https://inmoov.fr/), integrating it with ROS 2 (specifically the Jazzy Jalisco distribution) to create a modular, autonomous system capable of vision, speech, and interactive behaviors.
 
 <p align="center">
-  <img width="500" alt="InmoovAndDesigner" src="https://github.com/user-attachments/assets/bbaed02b-1b42-43e1-abb7-905a4f6747e7" />
+  <img src="images/inmoov-and-designer.png" width="500" alt="InMoov and its designer Gael Langevin">
 </p>
 
 The project is fully open-source and, as of today, the system is completely functional, demonstrating effective real-time face detection and recognition, natural speech synthesis, and coordinated robot control.
@@ -46,7 +46,7 @@ The project covers the following major components:
 
 ## Intended Audience
 
-This wiki is intended for developers, researchers, and hobbyists interested in humanoid robotics, ROS 2 integration, computer vision, and embedded systems. Prior knowledge of robotics and ROS is recommended for better understanding and contribution.
+This project is intended for developers, researchers, and hobbyists interested in humanoid robotics, ROS 2 integration, computer vision, and embedded systems. Prior knowledge of robotics and ROS is recommended for better understanding and contribution.
 
 ---
 
