@@ -51,6 +51,7 @@ Each page describes a different aspect of the system architecture, software comp
 4. [Repository Structure](docs/repository-structure.md): Explanation of the repository organization and the purpose of each directory.
 5. [Installation](docs/installation.md): Step-by-step guide to install dependencies and set up the development environment.
 6. [Usage](docs/usage.md): Instructions for running the system and launching the main components.
+7. [License and Credits](docs/license-and-credits.md): Licensing information and acknowledgements for the project and its contributors.
 
 ## License
 
