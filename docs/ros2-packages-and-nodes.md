@@ -20,20 +20,20 @@ In this architecture each Arduino receives commands from the computer via the US
 In this project a [fork](https://github.com/aalonsopuig/Xicro-enhanced) of the original Xicro repository is used, because the official version was not compatible with launching nodes via ROS 2 launch; the fork incorporates the necessary modifications to allow execution from launch files and is the version employed in the development.
 
 <p align="center">
-  <img width="826"  alt="xicro_nodes" src="https://github.com/user-attachments/assets/b18e6c77-5311-4b19-a8e7-f9b5ddfc1048" />
+  <img src="images/xicro-nodes.png" width="826" alt="xicro_nodes">
 </p>
 
 ### Configuration and Usage  
 The integration process between ROS 2 and the Arduino microcontrollers of the InMoov robot was carried out using the XICRO-ROS2 tool, which automates both the generation of the firmware library for the microcontroller and the Python node responsible for communication within the ROS 2 environment. 
 
-For this purpose, each subsystem (right arm and left arm plus head) is configured independently via a YAML file ([setup_xicro_subsystem1.yaml](https://github.com/aalonsopuig/Inmoov_ROS2/blob/main/inmoov_ws/src/Xicro/xicro_pkg/config/setup_xicro_subsystem1.yaml) and [setup_xicro_subsystem2.yaml](https://github.com/aalonsopuig/Inmoov_ROS2/blob/main/inmoov_ws/src/Xicro/xicro_pkg/config/setup_xicro_subsystem2.yaml)) that defines the microcontroller identifier, topic names, serial connection parameters and the characteristics of the messages to be sent or received.
+For this purpose, each subsystem (right arm and left arm plus head) is configured independently via a YAML file ([setup_xicro_subsystem1.yaml](../inmoov_ws/src/Xicro/xicro_pkg/config/setup_xicro_subsystem1.yaml) and [setup_xicro_subsystem2.yaml](../inmoov_ws/src/Xicro/xicro_pkg/config/setup_xicro_subsystem2.yaml)) that defines the microcontroller identifier, topic names, serial connection parameters and the characteristics of the messages to be sent or received.
 
 Because the generation script does not accept multiple configuration files simultaneously, the procedure consists of copying the YAML file corresponding to each subsystem to the generic name `setup_xicro.yaml` inside the `xicro_pkg` package configuration folder. The generators are then executed to produce the firmware library and the Python node for each case. 
 
 All these steps are described in detail on the **Installation** section.
 
 <p align="center">
-  <img width="863" alt="xicro_gen" src="https://github.com/user-attachments/assets/00a4dbad-03c5-4d7b-8b64-f634b0133599" />
+  <img src="images/xicro-generation.png" width="863" alt="xicro_gen">
 </p>
 
 
@@ -92,7 +92,7 @@ The final stage is implemented by the ROS 2 node `face_recognition_node.py`. Thi
 All these steps are described in detail on the **Installation** and **Usage** sections.
 
 <p align="center">
-  <img width="952" alt="arquitectura inmoov_vision" src="https://github.com/user-attachments/assets/3253b97f-fba2-46b3-b26a-721d5ab7b855" />
+  <img src="images/inmoov-vision-architecture.png" width="952" alt="InMoov vision architecture">
 </p>
 
 #### Technical Considerations
@@ -107,11 +107,11 @@ The computer vision system is structured into several functional components, org
 
 The main components and their roles are described below:
 
-**New faces registration**: [register_face.py](https://github.com/aalonsopuig/Inmoov_ROS2/blob/main/inmoov_ws/src/inmoov_vision/inmoov_vision/register_face.py)
+**New faces registration**: [register_face.py](../inmoov_ws/src/inmoov_vision/inmoov_vision/register_face.py)
 
 An interactive script used to capture training images of different individuals. The images are stored in separate subfolders within the `faces_db/` directory — one for each identity.
 
-**Encodings generation**: [generate_encodings.py](https://github.com/aalonsopuig/Inmoov_ROS2/blob/main/inmoov_ws/src/inmoov_vision/inmoov_vision/generate_encodings.py)
+**Encodings generation**: [generate_encodings.py](../inmoov_ws/src/inmoov_vision/inmoov_vision/generate_encodings.py)
 
 A preprocessing script that scans the `faces_db/`, detects faces in each image, and computes their feature vectors (embeddings). These vectors are serialized and saved in the file `encodings.pickle`, which is later used by the recognition system.
 
@@ -121,20 +121,20 @@ To implement this, two pretrained Dlib model files are required:
 - `dlib_face_recognition_resnet_model_v1.dat`: used to compute the facial feature vectors (embeddings).  
 
 
-**Faces detection**: [face_tracker_node.py](https://github.com/aalonsopuig/Inmoov_ROS2/blob/main/inmoov_ws/src/inmoov_vision/inmoov_vision/face_tracker_node.py)
+**Faces detection**: [face_tracker_node.py](../inmoov_ws/src/inmoov_vision/inmoov_vision/face_tracker_node.py)
 
 Uses OpenCV Haar cascade classifiers for real-time face detection from the robot's USB camera. It publishes the relative position of the most prominent face (normalized in the range [-1, 1]) to the topic `/face_position` as a `geometry_msgs/Point` message. It also republishes the raw video frames on the `/camera/image_raw` topic (`sensor_msgs/Image`) for use by other system nodes.
 
 <p align="center">
-  <img width="400" alt="image" src="https://github.com/user-attachments/assets/16c4560b-48b0-4943-9bcf-6f7623487f78" />
+  <img src="images/inmoov-head-camera.png" width="400" alt="InMoov head camera">
 </p>
 
-**Faces recognition** [face_recognition_node.py](https://github.com/aalonsopuig/Inmoov_ROS2/blob/main/inmoov_ws/src/inmoov_vision/inmoov_vision/face_recognition_node.py)
+**Faces recognition** [face_recognition_node.py](../inmoov_ws/src/inmoov_vision/inmoov_vision/face_recognition_node.py)
 
 A ROS 2 node based on Dlib that subscribes to the video stream published by `face_tracker_node.py`, detects and encodes faces in real time, and compares their embeddings against those stored in `encodings.pickle` using the Euclidean distance. If a match is found with sufficient confidence, the recognized person's name is published to the `/recognized_person` topic as a `std_msgs/String` message.
 
 <p align="center">
-  <img width="800" alt="image" src="https://github.com/user-attachments/assets/b61768c5-77ce-48a4-a900-a17a0e5ed574" />
+  <img src="images/face-recognition-pipeline.png" width="800" alt="Face recognition pipeline">
 </p>
 
 
@@ -154,7 +154,7 @@ During the development of the voice synthesis system for the InMoov robot, sever
 The `tts_jaw_node` receives sentences to synthesize by subscribing to the `/tts/say` topic of type `std_msgs/String`. Each time a text message is received, the node generates the corresponding audio signal using Piper. To achieve realistic jaw movement during voice playback, the node analyzes the generated WAV audio signal, calculating energy (RMS amplitude) in time windows of approximately 50 ms. Based on the detected energy, the node publishes the jaw servo position on the `/jaw` topic (`std_msgs/Int16`), so that the mouth opens wider in segments of higher energy and closes during silences. This method provides a natural visual effect without requiring phoneme-viseme mapping, representing a significant improvement over simple binary movement.
 
 <p align="center">
-  <img width="561" alt="tts_piper_arch" src="https://github.com/user-attachments/assets/b5d0aa90-0d6d-4de8-9a70-42c6874b4992" />
+  <img src="images/tts-piper-architecture.png" width="561" alt="TTS Piper architecture">
 </p>
 
 Pretrained Piper models are stored locally in the `/piper` directory. The model used in this project is `es_ES-davefx-medium`. It is for a male spanish voice, but you could get other voices from [Piper Voice Samples](https://rhasspy.github.io/piper-samples/) 
@@ -163,12 +163,12 @@ Pretrained Piper models are stored locally in the `/piper` directory. The model 
 
 The project implements two different nodes for speech synthesis:
 
-**TTS only**: [tts_node.py](https://github.com/aalonsopuig/Inmoov_ROS2/blob/main/inmoov_ws/src/inmoov_voice/inmoov_voice/tts_node.py)  
+**TTS only**: [tts_node.py](../inmoov_ws/src/inmoov_voice/inmoov_voice/tts_node.py)  
 A simple Text-to-Speech node that subscribes to the `/tts/say` topic (`std_msgs/String`).  
 Upon receiving text, it generates audio using Piper and plays it through the system’s speakers.  
 This node serves as a minimal and clean example of TTS integration in ROS 2, useful for reuse in other applications.
 
-**TTS and mouth (jaw) movement**: [tts_jaw_node.py](https://github.com/aalonsopuig/Inmoov_ROS2/blob/main/inmoov_ws/src/inmoov_voice/inmoov_voice/tts_jaw_node.py)  
+**TTS and mouth (jaw) movement**: [tts_jaw_node.py](../inmoov_ws/src/inmoov_voice/inmoov_voice/tts_jaw_node.py)  
 An extended version of the TTS node. It also subscribes to `/tts/say` and synthesizes audio using Piper, but in addition, it analyzes the generated audio signal to compute energy levels and publishes corresponding commands to the `/jaw` topic (`std_msgs/Int16`).  
 This allows the robot’s mouth to move in sync with the speech, creating a more natural effect for human-robot interaction.
 
@@ -193,20 +193,20 @@ In the future, however, the architecture could be extended to incorporate delibe
 
 The project implements two different nodes:
 
-**Face Tracking Node**: [face_tracking_behavior_node.py](https://github.com/aalonsopuig/Inmoov_ROS2/blob/main/inmoov_ws/src/inmoov_behaviors/inmoov_behaviors/face_tracking_behavior_node.py)  
+**Face Tracking Node**: [face_tracking_behavior_node.py](../inmoov_ws/src/inmoov_behaviors/inmoov_behaviors/face_tracking_behavior_node.py)  
 This ROS 2 Python node (`face_tracking_behavior_node`) ensures that the camera mounted on the InMoov’s head follows any detected person and adds a subtle eye movement for greater naturalness. It subscribes to `/face_position` (`geometry_msgs/Point`), which provides the horizontal and vertical deviation of the face relative to the image center, and to `/recognized_person` (`std_msgs/String`) to ensure that the tracked target is a valid person. Based on this information, the node incrementally adjusts the head servo angles (`/rothead` for pan and `/neck` for tilt), inverting the deviation sign to move in the correct direction, and directly maps the deviation to eye positions (`/eye_y` for horizontal gaze and `/eye_x` for vertical gaze).  
 To avoid erratic movements or “staring into the void” when the face disappears or is not recognized as a person, the node maintains a counter of null or invalid messages. If this counter exceeds a threshold, both the head and eyes automatically return to their central resting positions. All commands are constrained within the allowed mechanical ranges to ensure servo safety and integrity.  
 
 
 <p align="center">
-  <img width="691" alt="face_tracking_behavior_node" src="https://github.com/user-attachments/assets/01c37815-8953-494e-9185-eebee08a0405" />
+  <img src="images/face-tracking-behavior-node.png" width="691" alt="Face tracking behavior node">
 </p>
 
-**Person Recognition Behavior Node**: [face_recognized_behavior_node.py](https://github.com/aalonsopuig/Inmoov_ROS2/blob/main/inmoov_ws/src/inmoov_behaviors/inmoov_behaviors/face_recognized_behavior_node.py)   
+**Person Recognition Behavior Node**: [face_recognized_behavior_node.py](../inmoov_ws/src/inmoov_behaviors/inmoov_behaviors/face_recognized_behavior_node.py)   
 The node `face_recognized_behavior_node.py` subscribes to the `/recognized_person` topic to continuously receive the name of the detected person (or the special strings `"none"` and `"unknown"`). Based on this value, it decides whether to trigger a behavior.  
 
-- **Unknown persons**: when the received message is `"unknown"`, the node randomly selects a greeting phrase from the lines loaded from [greetings_unknown.txt](https://github.com/aalonsopuig/Inmoov_ROS2/blob/main/inmoov_ws/src/inmoov_behaviors/inmoov_behaviors/greetings_unknown.txt) and publishes it to `/tts/say` (`std_msgs/String`). A minimum interval of ten seconds between greetings is always enforced to avoid repetition.  
-- **Known persons**: when the received name matches a registered user, the node picks an entry from [greetings_known.txt](https://github.com/aalonsopuig/Inmoov_ROS2/blob/main/inmoov_ws/src/inmoov_behaviors/inmoov_behaviors/greetings_known.txt), replaces the `<nombre>` tag with the actual value, and publishes the personalized message to `/tts/say`. Immediately after, it triggers the execution of a gesture sequence defined in [movements_known.yaml](https://github.com/aalonsopuig/Inmoov_ROS2/blob/main/inmoov_ws/src/inmoov_behaviors/inmoov_behaviors/movements_known.yaml), where each step specifies angular values for different joints of the robot (publishing to topics such as `/thumb_finger_R`, `/bicep_R`, `/neck`, `/eye_y`, etc.) and an associated delay before moving to the next step. The topics and angles are fully configurable in the YAML file, and the node dynamically creates publishers according to the specified movements. ROS 2 timers ensure that the sequence is executed without blocking the processing of other messages or callbacks.  
+- **Unknown persons**: when the received message is `"unknown"`, the node randomly selects a greeting phrase from the lines loaded from [greetings_unknown.txt](../inmoov_ws/src/inmoov_behaviors/inmoov_behaviors/greetings_unknown.txt) and publishes it to `/tts/say` (`std_msgs/String`). A minimum interval of ten seconds between greetings is always enforced to avoid repetition.  
+- **Known persons**: when the received name matches a registered user, the node picks an entry from [greetings_known.txt](../inmoov_ws/src/inmoov_behaviors/inmoov_behaviors/greetings_known.txt), replaces the `<nombre>` tag with the actual value, and publishes the personalized message to `/tts/say`. Immediately after, it triggers the execution of a gesture sequence defined in [movements_known.yaml](../inmoov_ws/src/inmoov_behaviors/inmoov_behaviors/movements_known.yaml), where each step specifies angular values for different joints of the robot (publishing to topics such as `/thumb_finger_R`, `/bicep_R`, `/neck`, `/eye_y`, etc.) and an associated delay before moving to the next step. The topics and angles are fully configurable in the YAML file, and the node dynamically creates publishers according to the specified movements. ROS 2 timers ensure that the sequence is executed without blocking the processing of other messages or callbacks.  
 - **None**: if the message is `"none"`, the node remains idle until the content of `/recognized_person` changes and the ten-second interval has elapsed.  
 
 Throughout the process, an internal timer prevents excessive behavior triggering, and potential errors when reading greeting or movement files are logged via the ROS 2 logger.  
@@ -215,7 +215,7 @@ Throughout the process, an internal timer prevents excessive behavior triggering
 `~/inmoov_ws/src/inmoov_behaviors/inmoov_behaviors/`
 
 <p align="center">
-  <img width="802" alt="face_recognized_behavior_node" src="https://github.com/user-attachments/assets/bbdb2a01-d82d-4a15-9f1a-50ad2d84adf5" />
+  <img src="images/face-recognized-behavior-node.png" width="802" alt="Face recognized behavior node">
 </p>
 
 ### Configuration
@@ -227,4 +227,4 @@ For more details on the execution of behabior nodes refer to the **Installation*
 
 ---
 
-Each package and node is thoroughly documented in the source code and this wiki, and designed to be self-contained for ease of reuse in other robotics projects.
+Each package and node is thoroughly documented in the source code, and designed to be self-contained for ease of reuse in other robotics projects.

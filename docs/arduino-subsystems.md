@@ -16,8 +16,8 @@ The main drawback of this approach is that the velocity is constant throughout t
 
 Each Arduino subsystem has a specific program:
 
-- [Xicro_subsys1_ID_1.ino](https://github.com/aalonsopuig/Inmoov_ROS2/blob/main/Arduino/Xicro_subsys1_ID_1/Xicro_subsys1_ID_1.ino) for Subsystem 1 (Arduino Uno)
-- [Xicro_subsys1_ID_2.ino](https://github.com/aalonsopuig/Inmoov_ROS2/blob/main/Arduino/Xicro_subsys2_ID_2/Xicro_subsys2_ID_2.ino) for Subsystem 2 (Arduino Mega)
+- [Xicro_subsys1_ID_1.ino](../Arduino/Xicro_subsys1_ID_1/Xicro_subsys1_ID_1.ino) for Subsystem 1 (Arduino Uno)
+- [Xicro_subsys1_ID_2.ino](../Arduino/Xicro_subsys2_ID_2/Xicro_subsys2_ID_2.ino) for Subsystem 2 (Arduino Mega)
 
 The subsystems use the XICRO interface to receive commands from the central computer, allowing each joint to be assigned an individual target angle. Each servo is parameterized with its own safe movement range, a rest position, and a velocity (defined by step size and update interval). Servo movements are interpolated—gradually advancing or retracting until the target is reached—ensuring smooth operation and protecting the mechanics.
 

@@ -74,8 +74,8 @@ python -c "import numpy; print('numpy version:', numpy.__version__)"
 
 The project code and structure are designed to work with specific Arduino boards connected to predefined ports, configured in the YAML files:
 
-- [setup_xicro_subsystem1.yaml](https://github.com/aalonsopuig/Inmoov_ROS2/blob/main/inmoov_ws/src/Xicro/xicro_pkg/config/setup_xicro_subsystem1.yaml  
-- [setup_xicro_subsystem2.yaml](https://github.com/aalonsopuig/Inmoov_ROS2/blob/main/inmoov_ws/src/Xicro/xicro_pkg/config/setup_xicro_subsystem2.yaml)
+- [setup_xicro_subsystem1.yaml](../inmoov_ws/src/Xicro/xicro_pkg/config/setup_xicro_subsystem1.yaml)  
+- [setup_xicro_subsystem2.yaml](../inmoov_ws/src/Xicro/xicro_pkg/config/setup_xicro_subsystem2.yaml)
 
 These files are located at:  
 `~/inmoov_ws/src/Xicro/xicro_pkg/config/`

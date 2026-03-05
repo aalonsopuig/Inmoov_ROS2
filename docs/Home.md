@@ -34,20 +34,16 @@ The primary goals of the project are to:
 - Implement high-quality, offline text-to-speech synthesis  
 - Enable interactive behaviors based on user recognition and environmental input  
 
-## Scope
 
-The project covers the following major components:
+## Documentation
 
-- Mechanical assembly and subsystem control of the InMoov robot (upper body)  
-- Software architecture based on ROS 2 nodes and topics  
-- Face detection and recognition using OpenCV and Dlib  
-- Text-to-speech synthesis with Piper TTS  
-- Behavior management coordinating motion and speech  
+This section contains the technical documentation for the **Paul InMoov ROS2** project.  
+Each page describes a different aspect of the system architecture, software components, and usage.
 
-## Intended Audience
 
-This project is intended for developers, researchers, and hobbyists interested in humanoid robotics, ROS 2 integration, computer vision, and embedded systems. Prior knowledge of robotics and ROS is recommended for better understanding and contribution.
-
----
-
-For detailed information on hardware setup, software packages, usage instructions, and development guidelines, please refer to the other sections of this wiki.
+1. [Architecture Overview](docs/architecture-overview.md): High-level description of the hardware and software architecture of the robot system.
+2. [ROS2 Packages and Nodes](docs/ros2-packages-and-nodes.md): Overview of the ROS2 packages included in the project and the main nodes implemented.
+3. [Arduino Subsystems](docs/arduino-subsystems.md): Description of the Arduino-based servo control subsystems and their integration with ROS2.
+4. [Repository Structure](docs/repository-structure.md): Explanation of the repository organization and the purpose of each directory.
+5. [Installation](docs/installation.md): Step-by-step guide to install dependencies and set up the development environment.
+6. [Usage](docs/usage.md): Instructions for running the system and launching the main components.

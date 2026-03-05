@@ -10,7 +10,7 @@ This section provides a high-level description of the hardware and software arch
 The InMoov robot system is designed as a distributed hardware architecture consisting of a central processing unit and multiple microcontroller-based subsystems:
 
 <p align="center">
-  <img width="471" alt="ArquitecturaHW" src="https://github.com/user-attachments/assets/374fa2c6-08d6-49c6-bf01-560553fd7e93" />
+  <img src="images/hardware-architecture.png" width="471" alt="Hardware architecture of the InMoov system">
 </p>
 
 
@@ -34,7 +34,9 @@ This distributed hardware design facilitates modularity and scalability, allowin
 
 The software system is built around ROS 2 (Robot Operating System, version Jazzy Jalisco), a modular middleware framework that provides communication infrastructure and tools for robotic applications. Key elements include:
 
-<img width="1089" alt="ArquitecturaSW" src="https://github.com/user-attachments/assets/ca094073-3481-4d38-90d1-9e5d1062c939" />
+<p align="center">
+  <img src="images/software-architecture.png" width="1089" alt="Software architecture">
+</p>
 
 
 - **ROS 2 Nodes and Packages:**  
@@ -60,6 +62,4 @@ The software system is built around ROS 2 (Robot Operating System, version Jazzy
 
 This software architecture leverages ROS 2’s strengths in modularity, scalability, and real-time communication, enabling flexible integration of AI components such as neural-network-based vision and speech modules within a maker-friendly robotics platform.
 
----
 
-Further details on each subsystem and node can be found in the dedicated sections of this wiki.
