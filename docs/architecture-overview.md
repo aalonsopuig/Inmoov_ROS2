@@ -62,4 +62,7 @@ The software system is built around ROS 2 (Robot Operating System, version Jazzy
 
 This software architecture leverages ROS 2’s strengths in modularity, scalability, and real-time communication, enabling flexible integration of AI components such as neural-network-based vision and speech modules within a maker-friendly robotics platform.
 
+---
+
+[Return to Readme.md](../readme.md)
 
