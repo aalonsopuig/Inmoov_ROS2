@@ -228,3 +228,7 @@ For more details on the execution of behabior nodes refer to the **Installation*
 ---
 
 Each package and node is thoroughly documented in the source code, and designed to be self-contained for ease of reuse in other robotics projects.
+
+---
+
+[Return to README.md](../README.md)

@@ -94,3 +94,7 @@ ros2 run inmoov_behaviors face_recognized_behavior_node \
     --log-level face_recognized_behavior_node:=DEBUG \
     --log-level rcl:=WARN
 ```
+
+---
+
+[Return to README.md](../README.md)

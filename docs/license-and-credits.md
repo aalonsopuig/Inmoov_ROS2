@@ -53,3 +53,6 @@ The project relies on and acknowledges the following key open-source libraries a
 
 Contributions and feedback are welcome. 
 
+---
+
+[Return to README.md](../README.md)

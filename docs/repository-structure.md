@@ -140,3 +140,7 @@ inmoov_ws/
             ├── greetings_known.txt                  # text file with known-face greeting templates
             └── movements_known.yaml                 # YAML sequence of servo movements and delays
 ```
+
+---
+
+[Return to README.md](../README.md)

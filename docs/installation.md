@@ -313,3 +313,7 @@ After modifying any of these files, rebuild and source the workspace:
 cd ~/inmoov_ws
 colcon build --packages-select inmoov_behaviors
 source install/setup.bash
+
+---
+
+[Return to README.md](../README.md)
