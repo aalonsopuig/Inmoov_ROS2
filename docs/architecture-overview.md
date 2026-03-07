@@ -64,5 +64,5 @@ This software architecture leverages ROS 2’s strengths in modularity, scalabil
 
 ---
 
-[Return to Readme.md](../readme.md)
+[Return to README.md](../README.md)
 
