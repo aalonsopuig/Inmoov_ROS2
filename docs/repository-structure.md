@@ -4,12 +4,17 @@ This section describes the overall structure of the Inmoov_ROS2 project reposito
 
 # Repository Root: `Inmoov_ROS2/`
 
-Top-level project directory containing source code, documentation, and workspace.
+Top-level project directory containing source code, hardware assets, documentation, and the ROS 2 workspace.
 
 ```bash
 Inmoov_ROS2/
 ├── Arduino/                           # Arduino source code and firmware projects
-├── docs/                              # Technical documentation and diagrams
+├── docs/                              # Technical documentation and assembly guides
+│   └── assembly/                      # Mechanical assembly, wiring, and configuration instructions
+├── hardware/                          # Physical robot components and technical references
+│   ├── 3d_parts/                      # STL files and CAD sources for printed robot parts
+│   └── datasheets/                    # Datasheets for servos, boards, and electronic components
+├── media/                             # Photos and videos of the robot and demonstrations
 ├── inmoov_ws/                         # ROS 2 Jazzy workspace
 │   ├── src/
 │   │   ├── inmoov_voice/              # TTS package
@@ -20,7 +25,7 @@ Inmoov_ROS2/
 │   └── tools/                         # Additional standalone utilities and scripts
 │       └── xicro_servo_test_gui.py    # GUI tool for manual servo testing and calibration
 ├── piper/                             # Local voice synthesis engine and models
-└── README.md
+└── README.md                          # Project overview and entry point for documentation
 ```
 
 # Xicro

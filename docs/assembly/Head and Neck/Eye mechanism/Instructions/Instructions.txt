@@ -1,0 +1,8 @@
+Instructions
+
+Print all parts. Mine are done with ABS. 
+I used 3 DS9229HV servos from Hobbyking. 
+I have two different cameras set in the mechanism. The support plate is set far enough to mount different sorts of cameras, hopefully. 
+My cameras are a Hercule HD Twist and a Megapixel webcam. Both don't exceed 11 euros. I dismantled both of them to keep the minimum of stuff. 
+29/12/13 Update, I added printable eyeball, I got inspired by Jhack's model(http://www.thingiverse.com/thing:122502), and designed a wider pupile and adapted casing for my cameras.
+

@@ -1,0 +1,15 @@
+Instructions
+
+This is a work in progress, files might change until it is finished. 
+Before printing read all this, since the updates are on the bottom, it might save you printing time. 
+In order to protect this Open Source project, I uploaded the rest of the skull on: 
+https://cubehero.com/physibles/hairygael/Skull_for_Robot_InMoov
+
+Print one of each STL files attached. I did it in ABS. 
+Normally there is no need for support. 
+There is pre-supports to be removed: 
+On "TopMouth", under the noze and also inside there is anti wobbling leg to remove. 
+On "SideHear" there is anti wobbling legs to remove + a joining junction. 
+On "EyeGlass" remove the eyes supports.
+
+The assembly is pretty simple, you need to glue together "TopMouth" to "SideHear"; The other parts can be screwed attached to each other or to the structure.

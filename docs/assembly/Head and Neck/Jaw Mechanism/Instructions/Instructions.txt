@@ -1,0 +1,17 @@
+Instructions
+
+Print one of each STL. 
+No support needed, the "JawV3", might have a bit of overhang on the inside. 
+"JawV3" have pre-support added to be removed after printing. 
+Print most parts with a 0.5 layer thickness, best with no raft, 30% infill. 
+Print JawHingeV1 and JawpistonV1 with a 0.25 layer thickness, full infill.
+
+This jaw mechanism is to be assembled with this: 
+https://cubehero.com/physibles/hairygael/Neck_Mechanism_For_InMoov
+
+You will find the assembly step by step here: 
+http://inmoov.blogspot.fr/p/assembly-help.html
+
+Update 10/03/13 I have modified a little bit the pre-support of "JawV2" to "JawV3". This will ease to remove it from the printed part. 
+Modified also "JawHolderV1" to JawHolderV2" this allows easy mounting on "FaceHolderV3" (neck assembly) 
+Update 18/1013 I resurfaced Jaw to get a less faceted mesh. JawV3 to Jaw V4.
