@@ -1,5 +1,5 @@
 
-## License
+# License
 
 This project is released under the **Apache License 2.0**, a permissive open-source license that allows use, modification, and distribution both for personal and commercial purposes. The full license text can be found in the [LICENSE](../LICENSE) file in the root of this repository.
 
@@ -9,7 +9,7 @@ The choice of Apache 2.0 ensures:
 - Protection for contributors and users through an explicit grant of patent rights.
 - The obligation to preserve the license and notices in redistributed versions, maintaining attribution and legal clarity.
 
-## Credits
+# Credits
 
 ### Project Author
 

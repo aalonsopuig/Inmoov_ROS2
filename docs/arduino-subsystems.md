@@ -1,4 +1,6 @@
-# Approach
+# Arduino Subsystems
+
+## Approach
 
 Servo control is a fundamental aspect of any humanoid robot, especially when using 3D-printed mechanisms and high-torque servos to move large and delicate parts, as is the case with InMoov. Sudden or overly fast movements can cause mechanical overload, current spikes, and even break plastic components, so it is essential that all movements are smooth and well-controlled.
 
@@ -12,7 +14,7 @@ The software compares the current servo position to the target position and perf
 
 The main drawback of this approach is that the velocity is constant throughout the movement, with no acceleration or deceleration ramp. In advanced robotics, trapezoidal or S-curve velocity profiles are used, where motion starts slowly, accelerates to cruising speed, and decelerates again before reaching the target. Implementing such ramps could be a future improvement to allow even gentler and more precise movement.
 
-# Implementation
+## Implementation
 
 Each Arduino subsystem has a specific program:
 
@@ -23,7 +25,7 @@ The subsystems use the XICRO interface to receive commands from the central comp
 
 If a command with value zero is received, the program interprets this as a request to move the joint to its rest position, without the central system needing to know this value in advance. Received angles are always limited to the safe range configured for each servo before being sent to the motor. The control system is robust against out-of-range values and can be adapted to any servo in the assembly, including both large and small joints. It is flexible and allows easy adjustment of both the global movement speed and the individual parameters of each joint.
 
-## Subsystem 1: Right Arm (Arduino Uno)
+### Subsystem 1: Right Arm (Arduino Uno)
 
 | Topic              | Servo Instance       | Arduino Pin | Speed | Rest Angle (º) | Min (º) | Max (º) |
 |--------------------|---------------------|-------------|-------|----------------|---------|---------|
@@ -37,7 +39,7 @@ If a command with value zero is received, the program interprets this as a reque
 | shoulder_R         | s_shoulder_R        | 10          | 1     | 90             | 90      | 120     |
 | omoplate_R         | s_omoplate_R        | 11          | 1     | 5              | 0       | 20      |
 
-## Subsystem 2: Left Arm & Head (Arduino Mega)
+### Subsystem 2: Left Arm & Head (Arduino Mega)
 
 | Topic              | Servo Instance       | Arduino Pin | Speed | Rest Angle (º) | Min (º) | Max (º) |
 |--------------------|---------------------|-------------|-------|----------------|---------|---------|

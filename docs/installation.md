@@ -1,5 +1,6 @@
+# Installation guide
 
-# Hardware Requirements
+## Hardware Requirements
 
 - **InMoov humanoid robot (upper body)**  
   Printed parts and assembled with servomotors and sensors as per the original open-source design by [Gaël Langevin](https://inmoov.fr/).
@@ -14,7 +15,7 @@
 - **Camera:**  
   USB webcam mounted on the robot’s head for vision input.
 
-# Software Requirements
+## Software Requirements
 
 - Ubuntu 24.04 LTS or compatible Linux distribution (Lubuntu)  
 - ROS 2 Jazzy Jalisco  
@@ -28,7 +29,7 @@
 > **IMPORTANT:** It is asumed that you meet the requirements described above before going ahead with the installation of the project.
 
 
-# Clone the Project Repository
+## Clone the Project Repository
 
 The project repository is available at:  
 [https://github.com/aalonsopuig/Inmoov_ROS2](https://github.com/aalonsopuig/Inmoov_ROS2)
@@ -45,7 +46,7 @@ cd inmoov_ws
 ```
 
 
-# Install ROS 2 Dependencies
+## Install ROS 2 Dependencies
 Inside the cloned repository, the ROS 2 workspace is located in inmoov_ws.
 Navigate there and run:
 
@@ -54,7 +55,7 @@ rosdep update
 rosdep install --from-paths src --ignore-src -r -y
 ```
 
-# Build and Source the Environment
+## Build and Source the Environment
 
 Build the workspace with:
 
@@ -63,7 +64,7 @@ colcon build
 source install/setup.bash
 ```
 
-# Python Library Requirements for XICRO
+## Python Library Requirements for XICRO
 XICRO’s code generation functionality depends on specific Python libraries. One of them is `pyserial`, which is often confused with the unrelated `serial` package. If `serial` is installed in your environment, uninstall it before installing `pyserial` to avoid conflicts.
 
 ```bash
@@ -75,7 +76,7 @@ python -c "import serial; print('pyserial version:', serial.__version__)"
 python -c "import numpy; print('numpy version:', numpy.__version__)"
 ```
 
-# Hardware Parameter Customization and XICRO Library Regeneration
+## Hardware Parameter Customization and XICRO Library Regeneration
 
 The project code and structure are designed to work with specific Arduino boards connected to predefined ports, configured in the YAML files:
 
@@ -91,11 +92,11 @@ If you wish to use different board models, serial ports, or modify the connected
 > **IMPORTANT:** The XICRO code generation system works with a single configuration file named `setup_xicro.yaml`. Therefore, before generating code for each subsystem, copy the corresponding configuration file to this standard name.
 
 
-## Arduino Library Generation (ROS 2 communication firmware)
+### Arduino Library Generation (ROS 2 communication firmware)
 
 For each subsystem, follow these steps:
 
-### Subsystem 1 (right arm)
+#### Subsystem 1 (right arm)
 
 1. Modify `setup_xicro_subsystem1.yaml` as needed.
 2. Run:
@@ -108,7 +109,7 @@ source install/setup.bash
 ros2 run xicro_pkg generate_library.py -mcu_type arduino
 ```
 
-### Subsystem 2 (left arm and head)
+#### Subsystem 2 (left arm and head)
 
 1. Modify setup_xicro_subsystem2.yaml as needed.
 2. Run:
@@ -123,10 +124,10 @@ ros2 run xicro_pkg generate_library.py -mcu_type arduino
 
 This will generate .cpp and .h files in ~/Arduino/Xicro_subsys2_ID_2.
 
-## Python Communication Nodes Generation (for ROS 2)
+### Python Communication Nodes Generation (for ROS 2)
 Whenever you change hardware configuration or topics, you must also regenerate the Python communication nodes with the updated YAML file, following the same copying procedure:
 
-### Subsystem 1 (right arm)
+#### Subsystem 1 (right arm)
 
 ```bash
 cd Inmoov_ROS2/inmoov_ws
@@ -136,7 +137,7 @@ source install/setup.bash
 ros2 run xicro_pkg generate_xicro_node.py -mcu_type arduino
 ```
 
-### Subsystem 2 (left arm and head)
+#### Subsystem 2 (left arm and head)
 
 ```bash
 cd Inmoov_ROS2/inmoov_ws
@@ -146,7 +147,7 @@ source install/setup.bash
 ros2 run xicro_pkg generate_xicro_node.py -mcu_type arduino
 ```
 
-# Arduino IDE Installation on PC
+## Arduino IDE Installation on PC
 
 This section guides you through installing and launching Arduino IDE 2.2.1 on Linux using the AppImage format, enabling serial port access and resolving necessary dependencies and permissions.
 
@@ -198,7 +199,7 @@ Within the Arduino IDE, select the corresponding board (Arduino Uno for subsyste
 
 
 
-# Vision Requirements
+## Vision Requirements
 
 Make sure your system has the native libraries required by both OpenCV and Dlib, as well as the ROS bridge package `cv_bridge`. For example, on Lubuntu with ROS 2 Jazzy, you can run:
 
@@ -225,7 +226,7 @@ source install/setup.bash
 ```
 
 
-# Text-to-Speech (TTS) Requirements with Piper
+## Text-to-Speech (TTS) Requirements with Piper
 
 Install the necessary Python packages:
 
@@ -242,11 +243,11 @@ colcon build --packages-select inmoov_voice
 source install/setup.bash
 ```
 
-## Changing Voices or Languages
+### Changing Voices or Languages
 
 Change the default voice/language only if you want to use a different voice than the project's default (es_ES-davefx-medium).
 
-### Downloading a Different Voice/Language
+#### Downloading a Different Voice/Language
 
 To use a different voice or language with Piper, simply download the two files (ONNX model and its JSON config) for the chosen voice and update the node paths accordingly. For example, to switch to the voice en_US-amy-medium:
 
@@ -260,7 +261,7 @@ wget https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/amy/mediu
 wget https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/amy/medium/en_US-amy-medium.onnx.json
 ```
 
-### Update the ROS Node
+#### Update the ROS Node
 
 Edit the file inmoov_ws/src/inmoov_voice/inmoov_voice/tts_jaw_node.py and locate these lines in the constructor:
 
@@ -276,7 +277,7 @@ self.model_onnx = os.path.join(self.model_dir, 'en_US-amy-medium.onnx')
 self.model_cfg  = os.path.join(self.model_dir, 'en_US-amy-medium.onnx.json')
 ```
 
-### Rebuild the Package
+#### Rebuild the Package
 
 Finally, rebuild the package and source the environment again:
 
@@ -286,11 +287,11 @@ colcon build --packages-select inmoov_voice
 source install/setup.bash
 ```
 
-# Behavior Package Requirements
+## Behavior Package Requirements
 
 Once the repository is cloned, the behavior nodes will already be available in the `inmoov_behaviors` package. To adjust the robot's speech messages and gestures, you only need to edit two files:
 
-## Greetings
+### Greetings
 
 - The phrases the robot says when it detects an unknown person are in:  
   `inmoov_ws/src/inmoov_behaviors/inmoov_behaviors/greetings_unknown.txt`
@@ -302,7 +303,7 @@ Simply add, remove, or modify lines in these files (one phrase per line).
 
 In `greetings_known.txt`, use the placeholder `<nombre>` wherever you want the recognized person's name to appear.
 
-## Movement Sequences
+### Movement Sequences
 
 The gestures the robot performs upon recognizing someone are defined in:  
 `inmoov_ws/src/inmoov_behaviors/inmoov_behaviors/movements_known.yaml`
@@ -311,7 +312,7 @@ Each YAML block specifies a set of servos and their target angles, as well as a 
 
 To modify the behavior, open this file, adjust the joint names, their angles, or the wait times, and save.
 
-## Rebuild After Changes
+### Rebuild After Changes
 
 After modifying any of these files, rebuild and source the workspace:
 

@@ -1,7 +1,9 @@
 
+# Users guide
+
 This document describes how to start the robot’s functionalities.
 
-# Starting the Robot
+## Starting the Robot
 
 1. Turn on the PC.
 
@@ -11,7 +13,7 @@ This document describes how to start the robot’s functionalities.
 
 4. Turn on the robot.
 
-# Communications: Launching Xicro
+## Communications: Launching Xicro
 
 Open a terminal and run:
 
@@ -21,7 +23,7 @@ source Inmoov_ROS2/inmoov_ws/install/setup.bash
 ros2 launch xicro_nodes xicro_nodes.launch.py
 ```
 
-# Vision
+## Vision
 
 ### New known people registration
 
@@ -56,14 +58,14 @@ To run in debug mode instead, execute:
 ros2 launch inmoov_vision vision_nodes_debug.launch.py
 ```
 
-# Launching Text-to-Speech Node
+## Launching Text-to-Speech Node
 Open a new terminal tab and run:
 
 ```bash
 ros2 run inmoov_voice tts_jaw_node
 ```
 
-# Launching Face Tracking Behavior Node
+## Launching Face Tracking Behavior Node
 Open a new terminal tab and run:
 
 ```bash
@@ -79,7 +81,7 @@ ros2 run inmoov_behaviors face_tracking_behavior_node \
     --log-level rcl:=INFO
 ```
 
-# Launching Face Recognition Behavior Node
+## Launching Face Recognition Behavior Node
 Open a new terminal tab and run:
 
 ```bash

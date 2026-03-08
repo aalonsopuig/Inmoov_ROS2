@@ -1,8 +1,10 @@
+# Repository structure
+
 This section describes the overall structure of the Inmoov_ROS2 project repository, workspace, and Arduino user folder.
 
 ---
 
-# Repository Root: `Inmoov_ROS2/`
+## Repository Root: `Inmoov_ROS2/`
 
 Top-level project directory containing source code, hardware assets, documentation, and the ROS 2 workspace.
 
@@ -28,7 +30,7 @@ Inmoov_ROS2/
 └── README.md                          # Project overview and entry point for documentation
 ```
 
-# Xicro
+## Xicro
 
 ```bash
 Inmoov_ROS2/inmoov_ws/                                       # Main ROS 2 workspace directory
@@ -58,7 +60,7 @@ Inmoov_ROS2/inmoov_ws/                                       # Main ROS 2 worksp
 ```
 ---
 
-# Arduino User Folder: `~/Arduino/`
+## Arduino User Folder: `~/Arduino/`
 
 Contains generated Arduino firmware projects for each subsystem.
 
@@ -75,7 +77,7 @@ Contains generated Arduino firmware projects for each subsystem.
 └── ... (other Arduino projects)
 ```
 
-# inmoov_vision
+## inmoov_vision
 
 
 ```bash
@@ -104,7 +106,7 @@ inmoov_ws/
 
 ```
 
-# inmoov_voice
+## inmoov_voice
 
 
 ```bash
@@ -126,7 +128,7 @@ Inmoov_ROS2/                          # Repository root
     └── es_ES-davefx-medium.onnx.json # Model configuration file
 ```
 
-# inmoov_behaviors
+## inmoov_behaviors
 
 
 ```bash

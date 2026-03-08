@@ -1,9 +1,8 @@
-<br>
-<br>
+# ROS2 packages and nodes
 
 This section describes the main ROS 2 packages and nodes developed for the InMoov ROS2 project. Each package is designed to encapsulate a core functional area of the system, ensuring modularity, clarity, and ease of maintenance.
 
-# Communications: xicro_nodes
+## Communications: xicro_nodes
 
 ### Problem to solve
 The InMoov robot of this project uses two Arduino boards: an Arduino Uno that controls the right arm, and an Arduino Mega that manages the left arm, neck and head. The goal is to integrate both with a central computer running ROS 2 so the system can send high-level commands (for example, move a finger by x degrees or rotate the head by x degrees), while the Arduinos execute low-level tasks such as servo control. The difficulty arises because standard integration solutions between microcontrollers and ROS 2 require hardware capabilities beyond those of the boards in use, and we do not want to modify the original InMoov hardware; keeping the original hardware ensures the solution remains suitable for the community of developers who already use these boards.
@@ -56,7 +55,7 @@ In summary:
 <br>
 
 
-# Vision: inmoov_vision
+## Vision: inmoov_vision
 
 ### Objectives
 
@@ -143,7 +142,7 @@ A ROS 2 node based on Dlib that subscribes to the video stream published by `fac
 ---
 <br>
 
-# Speach synthesys: inmoov_voice
+## Speach synthesys: inmoov_voice
 
 ### Approach
 
@@ -178,7 +177,7 @@ In practice, the `tts_jaw_node` is the one used in the InMoov robot, while `tts_
 ---
 <br>
 
-# Behaviors: inmoov_behaviors
+## Behaviors: inmoov_behaviors
 
 ### Approach
 In cognitive and service robotics it is common to distinguish three major behavior paradigms: reactive, which responds directly to sensory stimuli without explicit planning; deliberative, which builds an internal model of the world and plans long-term sequences of actions; and hybrid, which combines both approaches to achieve efficiency and robustness.  

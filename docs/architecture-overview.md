@@ -1,7 +1,4 @@
-<br>
-<br>
-
-
+# Architecture overview
 
 This section provides a high-level description of the hardware and software architecture of the InMoov ROS2 project. It explains how the different components interact to form a modular, distributed robotic system.
 
