@@ -50,7 +50,7 @@ In summary:
 **Auxiliary Scripts and Tools:**
 - **`xicro_servo_test_gui.py`:**  
   A graphical Python tool for manually testing and calibrating all servos in both subsystems.  
-  *Location:* `~/inmoov_ws/tools/xicro_servo_test_gui.py`
+  *Location:* `Inmoov_ROS2/inmoov_ws/tools/xicro_servo_test_gui.py`
 
 ---
 <br>
@@ -212,7 +212,7 @@ The node `face_recognized_behavior_node.py` subscribes to the `/recognized_perso
 Throughout the process, an internal timer prevents excessive behavior triggering, and potential errors when reading greeting or movement files are logged via the ROS 2 logger.  
 
 **Location:**  
-`~/inmoov_ws/src/inmoov_behaviors/inmoov_behaviors/`
+`Inmoov_ROS2/inmoov_ws/src/inmoov_behaviors/inmoov_behaviors/`
 
 <p align="center">
   <img src="images/face-recognized-behavior-node.png" width="802" alt="Face recognized behavior node">

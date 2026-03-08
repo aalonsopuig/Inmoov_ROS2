@@ -30,19 +30,24 @@
 
 # Clone the Project Repository
 
-The project repository is located at:  
+The project repository is available at:  
 [https://github.com/aalonsopuig/Inmoov_ROS2](https://github.com/aalonsopuig/Inmoov_ROS2)
 
-It is recommended to clone it in the user’s home directory (`~/`) since the original setup was done this way, but users can clone it wherever they prefer, adjusting commands accordingly.
+The original development environment placed the repository directly in the user's home directory (`~/`), but users can clone it wherever they prefer, adjusting commands accordingly.
+
+The following commands check out version `v1.1.0`:
 
 ```bash
-cd ~
-git clone https://github.com/aalonsopuig/Inmoov_ROS2.git .
-cd ~/inmoov_ws
+git clone https://github.com/aalonsopuig/Inmoov_ROS2.git
+cd Inmoov_ROS2
+git checkout v1.1.0
+cd inmoov_ws
 ```
 
+
 # Install ROS 2 Dependencies
-Inside the cloned folders, the project workspace is inmoov_ws. Navigate there and run:
+Inside the cloned repository, the ROS 2 workspace is located in inmoov_ws.
+Navigate there and run:
 
 ```bash
 rosdep update
@@ -59,7 +64,7 @@ source install/setup.bash
 ```
 
 # Python Library Requirements for XICRO
-XICRO’s code generation functionality depends on specific Python libraries. One of them is pyserial, often confused with serial. If you have the serial library installed in another project, rename or uninstall it before installing pyserial to avoid conflicts.
+XICRO’s code generation functionality depends on specific Python libraries. One of them is `pyserial`, which is often confused with the unrelated `serial` package. If `serial` is installed in your environment, uninstall it before installing `pyserial` to avoid conflicts.
 
 ```bash
 pip uninstall serial --break-system-packages
@@ -77,8 +82,9 @@ The project code and structure are designed to work with specific Arduino boards
 - [setup_xicro_subsystem1.yaml](../inmoov_ws/src/Xicro/xicro_pkg/config/setup_xicro_subsystem1.yaml)  
 - [setup_xicro_subsystem2.yaml](../inmoov_ws/src/Xicro/xicro_pkg/config/setup_xicro_subsystem2.yaml)
 
-These files are located at:  
-`~/inmoov_ws/src/Xicro/xicro_pkg/config/`
+These files are located in the repository at:
+
+`inmoov_ws/src/Xicro/xicro_pkg/config/`
 
 If you wish to use different board models, serial ports, or modify the connected servos/controllers, you must edit these YAML files following the official [XICRO documentation](https://github.com/aalonsopuig/Xicro-enhanced) to adapt them to your hardware and desired ROS 2 topics.
 
@@ -95,7 +101,7 @@ For each subsystem, follow these steps:
 2. Run:
 
 ```bash
-cd ~/inmoov_ws
+cd Inmoov_ROS2/inmoov_ws
 cp src/Xicro/xicro_pkg/config/setup_xicro_subsystem1.yaml src/Xicro/xicro_pkg/config/setup_xicro.yaml
 colcon build
 source install/setup.bash
@@ -108,7 +114,7 @@ ros2 run xicro_pkg generate_library.py -mcu_type arduino
 2. Run:
 
 ```bash
-cd ~/inmoov_ws
+cd Inmoov_ROS2/inmoov_ws
 cp src/Xicro/xicro_pkg/config/setup_xicro_subsystem2.yaml src/Xicro/xicro_pkg/config/setup_xicro.yaml
 colcon build
 source install/setup.bash
@@ -123,7 +129,7 @@ Whenever you change hardware configuration or topics, you must also regenerate t
 ### Subsystem 1 (right arm)
 
 ```bash
-cd ~/inmoov_ws
+cd Inmoov_ROS2/inmoov_ws
 cp src/Xicro/xicro_pkg/config/setup_xicro_subsystem1.yaml src/Xicro/xicro_pkg/config/setup_xicro.yaml
 colcon build
 source install/setup.bash
@@ -133,7 +139,7 @@ ros2 run xicro_pkg generate_xicro_node.py -mcu_type arduino
 ### Subsystem 2 (left arm and head)
 
 ```bash
-cd ~/inmoov_ws
+cd Inmoov_ROS2/inmoov_ws
 cp src/Xicro/xicro_pkg/config/setup_xicro_subsystem2.yaml src/Xicro/xicro_pkg/config/setup_xicro.yaml
 colcon build
 source install/setup.bash
@@ -213,7 +219,7 @@ sudo apt install python3-colcon-common-extensions
 Then build the vision package:
 
 ```bash
-cd ~/inmoov_ws
+cd Inmoov_ROS2/inmoov_ws
 colcon build --packages-select inmoov_vision
 source install/setup.bash
 ```
@@ -231,7 +237,7 @@ pip install soundfile --break-system-packages
 Build the TTS package:
 
 ```bash
-cd ~/inmoov_ws
+cd Inmoov_ROS2/inmoov_ws
 colcon build --packages-select inmoov_voice
 source install/setup.bash
 ```
@@ -249,7 +255,7 @@ Visit [Piper Voice Samples](https://rhasspy.github.io/piper-samples/), select th
 Download the model files using wget inside the ~/piper directory:
 
 ```bash
-cd ~/piper
+cd Inmoov_ROS2/piper
 wget https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/amy/medium/en_US-amy-medium.onnx
 wget https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/amy/medium/en_US-amy-medium.onnx.json
 ```
@@ -275,7 +281,7 @@ self.model_cfg  = os.path.join(self.model_dir, 'en_US-amy-medium.onnx.json')
 Finally, rebuild the package and source the environment again:
 
 ```bash
-cd ~/inmoov_ws
+cd Inmoov_ROS2/inmoov_ws
 colcon build --packages-select inmoov_voice
 source install/setup.bash
 ```
@@ -310,7 +316,7 @@ To modify the behavior, open this file, adjust the joint names, their angles, or
 After modifying any of these files, rebuild and source the workspace:
 
 ```bash
-cd ~/inmoov_ws
+cd Inmoov_ROS2/inmoov_ws
 colcon build --packages-select inmoov_behaviors
 source install/setup.bash
 

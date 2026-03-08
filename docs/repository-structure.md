@@ -26,7 +26,7 @@ Inmoov_ROS2/
 # Xicro
 
 ```bash
-~/inmoov_ws/                                       # Main ROS 2 workspace directory
+Inmoov_ROS2/inmoov_ws/                                       # Main ROS 2 workspace directory
 ├── src/                                           # Source folder for ROS 2 packages and repositories
 │   ├── Xicro/                                     # Fork or repository of XICRO tool used for code generation
 │   │   └── xicro_pkg/                             # Main XICRO Python package containing configuration and scripts

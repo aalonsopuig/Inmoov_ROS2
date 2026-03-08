@@ -17,7 +17,7 @@ Open a terminal and run:
 
 ```bash
 cd inmoov_ws
-source ~/inmoov_ws/install/setup.bash
+source Inmoov_ROS2/inmoov_ws/install/setup.bash
 ros2 launch xicro_nodes xicro_nodes.launch.py
 ```
 
@@ -28,16 +28,16 @@ ros2 launch xicro_nodes xicro_nodes.launch.py
 This script will register new faces taking 5 pictures. It will ask you to write down the name of the person and will create a folder and files with this name:
 
 ```bash
-cd ~/inmoov_ws/src/inmoov_vision/inmoov_vision
+cd Inmoov_ROS2/inmoov_ws/src/inmoov_vision/inmoov_vision
 python3 register_face.py
 ```
 
 Then we will generate the embeddings of this files:
 
 ```bash
-cd ~/inmoov_ws
+cd Inmoov_ROS2/inmoov_ws
 source install/setup.bash
-mkdir -p ~/inmoov_ws/src/inmoov_vision/inmoov_vision/data
+mkdir -p Inmoov_ROS2/inmoov_ws/src/inmoov_vision/inmoov_vision/data
 python3 src/inmoov_vision/inmoov_vision/generate_encodings.py
 ```
 
@@ -46,7 +46,7 @@ python3 src/inmoov_vision/inmoov_vision/generate_encodings.py
 Open a new terminal tab and run:
 
 ```bash
-source ~/inmoov_ws/install/setup.bash
+source Inmoov_ROS2/inmoov_ws/install/setup.bash
 ros2 launch inmoov_vision vision_nodes.launch.py
 ```
 
