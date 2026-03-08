@@ -41,7 +41,7 @@ The following commands check out version `v1.1.0`:
 ```bash
 git clone https://github.com/aalonsopuig/Inmoov_ROS2.git
 cd Inmoov_ROS2
-git checkout v1.1.0
+git checkout v1.0.0
 cd inmoov_ws
 ```
 

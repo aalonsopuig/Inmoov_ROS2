@@ -1,6 +1,8 @@
 # Inmoov_ROS2
 
-**Status of the project: Working with no known bugs. June 2025**
+*v1.0.0 — First stable ROS2 version of the Paul InMoov robot. June 2025
+The previous non-ROS implementation (MyRobotLab) is available in the repository*:
+https://github.com/aalonsopuig/Paul_Robot
 
 Welcome to the **InMoov ROS2 Project**. This project builds upon the open-source InMoov humanoid robot platform, originally designed by [Gaël Langevin](https://inmoov.fr/), integrating it with ROS 2 (specifically the Jazzy Jalisco distribution) to create a modular, autonomous system capable of vision, speech, and interactive behaviors.
 
