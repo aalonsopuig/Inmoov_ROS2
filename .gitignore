@@ -5,19 +5,24 @@
 # Ignore everything by default
 *
 
-# Allow specific folders and their contents (must include trailing slash + wildcard)
+# Allow specific folders and their contents
 !Arduino/
 !Arduino/**
 
 !inmoov_ws/
 !inmoov_ws/**
 
-
 !piper/
 !piper/**
 
 !docs/
 !docs/**
+
+!hardware/
+!hardware/**
+
+!media/
+!media/**
 
 # Include project-level files
 !.gitignore
