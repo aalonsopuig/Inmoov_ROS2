@@ -1,9 +1,19 @@
 # Inmoov_ROS2
 
-*v1.0.0 — First stable ROS2 version of the Paul InMoov robot. June 2025
-The previous non-ROS implementation (MyRobotLab) is available in the repository*:
-https://github.com/aalonsopuig/Paul_Robot
+## Versions
 
+- [v1.0.0](https://github.com/aalonsopuig/Inmoov_ROS2/releases/tag/v1.0.0) – First stable ROS2 version of the Paul InMoov robot (june 2025)
+- **main** – Current development version
+
+To use the stable release (v1.0.0):
+
+```bash
+git clone https://github.com/aalonsopuig/Inmoov_ROS2.git
+cd Inmoov_ROS2
+git checkout v1.0.0
+```
+---
+## Welcome
 Welcome to the **InMoov ROS2 Project**. This project builds upon the open-source InMoov humanoid robot platform, originally designed by [Gaël Langevin](https://inmoov.fr/), integrating it with ROS 2 (specifically the Jazzy Jalisco distribution) to create a modular, autonomous system capable of vision, speech, and interactive behaviors.
 
 <p align="center">
@@ -14,6 +24,7 @@ The project is fully open-source and, as of today, the system is completely func
 
 The development and maintenance of this project are led by Alejandro Alonso Puig, aimed at providing a scalable and maker-friendly robotic platform accessible to the wider robotics and AI community.
 
+---
 ## Project Overview
 
 The InMoov ROS2 project focuses on creating a flexible, scalable, and maker-friendly robotic system capable of interacting with people through vision and speech. The system architecture is based on a distributed model, combining a central processing unit running ROS 2 with microcontroller subsystems that control the robot’s articulations.
@@ -30,6 +41,7 @@ Key features include:
 - Natural speech synthesis with synchronized mouth movement  
 - Reactive and personalized interaction behaviors  
 
+---
 ## Goals
 
 The primary goals of the project are to:
@@ -40,7 +52,7 @@ The primary goals of the project are to:
 - Implement high-quality, offline text-to-speech synthesis  
 - Enable interactive behaviors based on user recognition and environmental input  
 
-
+---
 ## Documentation
 
 This section contains the technical documentation for the **Paul InMoov ROS2** project.  
@@ -55,6 +67,7 @@ Each page describes a different aspect of the system architecture, software comp
 6. [Usage](docs/usage.md): Instructions for running the system and launching the main components.
 7. [License and Credits](docs/license-and-credits.md): Licensing information and acknowledgements for the project and its contributors.
 
+---
 ## License
 
 This project is licensed under the [Apache License 2.0](LICENSE).
