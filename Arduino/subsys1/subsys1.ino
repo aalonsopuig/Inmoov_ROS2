@@ -1,68 +1,63 @@
 /*
 ===============================================================================
 File:         subsys_1.ino
-Version:      1.6.0
+Version:      1.15.0
 Author:       Alejandro Alonso Puig (https://github.com/aalonsopuig) + GPT
-Date:         2026-06-08
+Date:         2026-06-10
 License:      Apache 2.0
 -------------------------------------------------------------------------------
 Description:
 
-Hardware validation firmware for InMoov Subsystem 1.
+Safe full Subsystem 1 validation firmware for InMoov.
 
-This sketch validates the Arduino Uno shield used in Subsystem 1 of the InMoov
-robot. It activates servo power group 1, keeps servo power group 2 disabled, and
-moves all group 1 servos to their configured rest positions.
+Controlled servos:
 
-This version does not use ROS 2 or XICRO.
+Group 1, D12:
+- THUMB_R
+- INDEX_R
+- MIDDLE_R
+- RING_R
+- PINKY_R
+- BICEP_R
+- ROTATE_R
 
-Main functions:
+Group 2, D13:
+- SHOULDER_R
+- OMOPLATE_R
 
-- Activate servo power group 1.
-- Keep servo power group 2 OFF.
-- Wait after enabling servo power before reading feedback.
-- Attach and hold all group 1 servos.
-- For servos with feedback, start from measured physical position.
-- Move group 1 servos to their configured rest positions.
-- Use runtime speed values loaded from servoConfigs[].
-- Implement basic overcurrent fault detection.
-- Use a pushbutton connected to D7 only to select the servo shown on screen.
-- Show selected servo information on an OLED display using U8x8lib.
-- Avoid full-screen clearing to reduce OLED flicker.
-- Use external 3.3 V ADC reference through AREF.
+Required sequence:
 
-Important:
+- Startup:
+  D12 OFF, D13 OFF, no PWM.
 
-- This version uses Servo.h instead of ServoController to fit in Arduino Uno RAM.
-- Static servo parameters are read from servoConfigs[] in PROGMEM.
-- Runtime state is kept in SmoothServo.
-- Group 1: ON  -> THUMB_R, INDEX_R, MIDDLE_R, RING_R, PINKY_R, BICEP_R, ROTATE_R
-- Group 2: OFF -> SHOULDER_R, OMOPLATE_R
-- Group 2 servos are not driven because their power group is OFF.
+- Button press 1:
+  Generate PWM at rest for all non-feedback servos while D12 and D13 are still OFF:
+  fingers, ROTATE_R, SHOULDER_R and OMOPLATE_R.
+  Enable D12 and D13.
+  Wait 2 seconds.
+  Read BICEP_R feedback.
+  Use measured BICEP_R position as current position.
+  Attach BICEP_R PWM from that measured position.
+  Move BICEP_R to rest.
+  Result: all servos go to rest.
 
-Hardware:
+- Button press 2:
+  Move all servos to maximum allowed position.
 
-- Arduino Uno
+- Button press 3:
+  Move all servos to minimum allowed position.
 
-- D12: Servo group 1 power control
-       Bicep + fingers + rotate
-       LOW  -> servos OFF
-       HIGH -> servos ON
+- Button press 4:
+  Move all servos to rest.
+  When all reach rest, detach PWM and switch D12 and D13 OFF.
 
-- D13: Servo group 2 power control
-       Shoulder + omoplate
-       LOW  -> servos OFF
-       HIGH -> servos ON
+Safety:
 
-- D7:  Next-servo pushbutton
-       Button connects D7 to GND when pressed
-       Internal pull-up is enabled
-
-- A0:  BICEP_R position feedback input, if configured in .h
-- A1:  BICEP_R current sense input, if configured in .h
-
-- AREF connected externally to 3.3 V
-- OLED SSD1315 / SSD1306-compatible display via I2C
+- BICEP_R is never attached before feedback has been read.
+- BICEP_R always starts from measured feedback position.
+- BICEP_R current fault detection is active whenever BICEP_R PWM is active.
+- All commanded angles are constrained to the configured allowed limits.
+- Non-feedback servos receive a valid rest PWM before their power groups are enabled.
 
 ===============================================================================
 */
@@ -95,47 +90,86 @@ U8X8_SSD1306_128X64_NONAME_HW_I2C oled(U8X8_PIN_NONE);
 char lastOledRows[OLED_ROWS][OLED_COLS + 1];
 
 // ============================================================================
-// ADC and timing configuration
+// Timing and ADC
 // ============================================================================
 
-#define ADC_SAMPLES              4
-#define SERVO_UPDATE_MS         40
-#define DISPLAY_UPDATE_MS      250
-#define DEBOUNCE_MS             40
-#define POWER_SETTLE_MS       2000
-#define CURRENT_STARTUP_GRACE 1000
+#define ADC_SAMPLES         8
+#define SERVO_UPDATE_MS    40
+#define DISPLAY_UPDATE_MS 250
+#define DEBOUNCE_MS        40
+#define POWER_SETTLE_MS  2000
 
 // ============================================================================
-// Dynamic servo state
+// Auxiliary servos: all non-feedback servos in subsystem 1
 // ============================================================================
 
-struct SmoothServo
+#define NUM_AUX_SERVOS 8
+
+const uint8_t auxServoIndex[NUM_AUX_SERVOS] =
+{
+    THUMB_R,
+    INDEX_R,
+    MIDDLE_R,
+    RING_R,
+    PINKY_R,
+    ROTATE_R,
+    SHOULDER_R,
+    OMOPLATE_R
+};
+
+struct AuxServoState
+{
+    Servo servo;
+    int current_deg;
+    int target_deg;
+    int speed_pct;
+    bool attached;
+    unsigned long last_update;
+};
+
+AuxServoState aux[NUM_AUX_SERVOS];
+
+// ============================================================================
+// Biceps state
+// ============================================================================
+
+enum TestMode
+{
+    MODE_POWER_OFF = 0,
+    MODE_TO_REST,
+    MODE_TO_MAX,
+    MODE_TO_MIN,
+    MODE_REST_THEN_OFF,
+    MODE_FAULT
+};
+
+struct BicepState
 {
     Servo servo;
 
-    int current;
-    int target;
+    int current_deg;
+    int target_deg;
+    int feedback_deg;
+    int current_mA;
 
-    int current_speed_pct;
-    int current_accel_pct;
+    int speed_pct;
+    int accel_pct;
 
-    bool fault_active;
-    bool first_commanded;
     bool attached;
+    bool fault_active;
 
     unsigned long last_update;
     unsigned long overcurrent_start;
-    unsigned long ignore_current_until;
 };
 
-SmoothServo servos[NUM_SERVOS];
+BicepState bicep;
+ServoConfig bicepCfg;
+
+TestMode mode = MODE_POWER_OFF;
 
 // ============================================================================
-// Global state
+// Button and display state
 // ============================================================================
-
-uint8_t currentServoIndex = 0;
-ServoConfig activeCfg;
 
 bool lastButtonReading = HIGH;
 bool stableButtonState = HIGH;
@@ -143,7 +177,7 @@ unsigned long lastDebounceTime = 0;
 unsigned long lastDisplayUpdate = 0;
 
 // ============================================================================
-// Utility functions
+// Generic utility functions
 // ============================================================================
 
 int rounded_int(float value)
@@ -158,7 +192,7 @@ int rounded_int(float value)
     }
 }
 
-int safe_constrain(int value, int min_val, int max_val)
+int safe_constrain_int(int value, int min_val, int max_val)
 {
     return constrain(value, min_val, max_val);
 }
@@ -175,6 +209,11 @@ void readServoConfig(uint8_t index, ServoConfig &cfg)
     memcpy_P(&cfg, &servoConfigs[index], sizeof(ServoConfig));
 }
 
+void readBicepConfig()
+{
+    readServoConfig(BICEP_R, bicepCfg);
+}
+
 float readAveragedADC(uint8_t pin, uint8_t samples)
 {
     long sum = 0;
@@ -187,74 +226,51 @@ float readAveragedADC(uint8_t pin, uint8_t samples)
     return (float)sum / (float)samples;
 }
 
-bool hasFeedbackADC(const ServoConfig &cfg)
+// ============================================================================
+// Generic servo configuration helpers
+// ============================================================================
+
+int cfgAllowedMin(const ServoConfig &cfg)
 {
-    return cfg.feedback_adc_pin >= 0;
+    return rounded_int(cfg.allowed_min_deg);
 }
 
-bool hasFeedbackCalibration(const ServoConfig &cfg)
+int cfgAllowedMax(const ServoConfig &cfg)
 {
-    return hasFeedbackADC(cfg) &&
-           cfg.fb_adc_at_servo_max_deg != cfg.fb_adc_at_servo_min_deg &&
-           cfg.servo_max_deg > cfg.servo_min_deg;
+    return rounded_int(cfg.allowed_max_deg);
 }
 
-bool hasCurrentADC(const ServoConfig &cfg)
+int cfgRestDeg(const ServoConfig &cfg)
 {
-    return cfg.current_adc_pin >= 0;
-}
-
-bool hasCurrentCalibration(const ServoConfig &cfg)
-{
-    return hasCurrentADC(cfg) &&
-           cfg.current_mA_per_count > 0.0f;
-}
-
-float feedbackAngleFromADC(const ServoConfig &cfg, int adcValue)
-{
-    if (!hasFeedbackCalibration(cfg))
-    {
-        return cfg.rest_deg;
-    }
-
-    float ratio =
-        (float)(adcValue - cfg.fb_adc_at_servo_min_deg) /
-        (float)(cfg.fb_adc_at_servo_max_deg - cfg.fb_adc_at_servo_min_deg);
-
-    float angle =
-        cfg.servo_min_deg +
-        ratio * (cfg.servo_max_deg - cfg.servo_min_deg);
-
-    return safe_constrain_float(angle, cfg.servo_min_deg, cfg.servo_max_deg);
-}
-
-float currentMilliAmpsFromADC(const ServoConfig &cfg, int adcValue)
-{
-    if (!hasCurrentCalibration(cfg))
-    {
-        return 0.0f;
-    }
-
-    float current_mA =
-        (adcValue - (float)cfg.current_adc_offset) *
-        cfg.current_mA_per_count;
-
-    if (current_mA < 0.0f)
-    {
-        current_mA = 0.0f;
-    }
-
-    return current_mA;
-}
-
-int angleToPwmUs(const ServoConfig &cfg, int angleDeg)
-{
-    int boundedAngle = safe_constrain(
-        angleDeg,
-        rounded_int(cfg.servo_min_deg),
-        rounded_int(cfg.servo_max_deg)
+    return safe_constrain_int(
+        rounded_int(cfg.rest_deg),
+        cfgAllowedMin(cfg),
+        cfgAllowedMax(cfg)
     );
+}
 
+int cfgMinDeg(const ServoConfig &cfg)
+{
+    return cfgAllowedMin(cfg);
+}
+
+int cfgMaxDeg(const ServoConfig &cfg)
+{
+    return cfgAllowedMax(cfg);
+}
+
+int cfgConstrainAngle(const ServoConfig &cfg, int angleDeg)
+{
+    return safe_constrain_int(
+        angleDeg,
+        cfgAllowedMin(cfg),
+        cfgAllowedMax(cfg)
+    );
+}
+
+int cfgAngleToPwmUs(const ServoConfig &cfg, int angleDeg)
+{
+    int boundedAngle = cfgConstrainAngle(cfg, angleDeg);
     int physicalAngle = boundedAngle;
 
     if (cfg.inverted)
@@ -263,6 +279,12 @@ int angleToPwmUs(const ServoConfig &cfg, int angleDeg)
             rounded_int(cfg.servo_max_deg) -
             (boundedAngle - rounded_int(cfg.servo_min_deg));
     }
+
+    physicalAngle = safe_constrain_int(
+        physicalAngle,
+        rounded_int(cfg.servo_min_deg),
+        rounded_int(cfg.servo_max_deg)
+    );
 
     float spanDeg = cfg.servo_max_deg - cfg.servo_min_deg;
 
@@ -284,9 +306,9 @@ int angleToPwmUs(const ServoConfig &cfg, int angleDeg)
     return rounded_int(pwm);
 }
 
-int computeStepDeg(const ServoConfig &cfg, uint8_t servoIndex)
+int cfgComputeStepDeg(const ServoConfig &cfg, int speedPct)
 {
-    float speed_pct = servos[servoIndex].current_speed_pct;
+    float speed_pct = speedPct;
 
     if (speed_pct < 1.0f)
     {
@@ -314,337 +336,503 @@ int computeStepDeg(const ServoConfig &cfg, uint8_t servoIndex)
     return step;
 }
 
-int readInitialServoAngle(const ServoConfig &cfg)
-{
-    int initialDeg;
+// ============================================================================
+// BICEP_R feedback and current helpers
+// ============================================================================
 
-    if (hasFeedbackADC(cfg) && hasFeedbackCalibration(cfg))
+bool bicepHasFeedbackADC()
+{
+    return bicepCfg.feedback_adc_pin >= 0;
+}
+
+bool bicepHasFeedbackCalibration()
+{
+    return bicepHasFeedbackADC() &&
+           bicepCfg.fb_adc_at_servo_max_deg != bicepCfg.fb_adc_at_servo_min_deg &&
+           bicepCfg.servo_max_deg > bicepCfg.servo_min_deg;
+}
+
+bool bicepHasCurrentADC()
+{
+    return bicepCfg.current_adc_pin >= 0;
+}
+
+bool bicepHasCurrentCalibration()
+{
+    return bicepHasCurrentADC() &&
+           bicepCfg.current_mA_per_count > 0.0f;
+}
+
+float bicepFeedbackAngleFromADC(int adcValue)
+{
+    if (!bicepHasFeedbackCalibration())
     {
-        int fbAdc = rounded_int(readAveragedADC(cfg.feedback_adc_pin, ADC_SAMPLES));
-        initialDeg = rounded_int(feedbackAngleFromADC(cfg, fbAdc));
+        return bicepCfg.rest_deg;
+    }
+
+    float ratio =
+        (float)(adcValue - bicepCfg.fb_adc_at_servo_min_deg) /
+        (float)(bicepCfg.fb_adc_at_servo_max_deg - bicepCfg.fb_adc_at_servo_min_deg);
+
+    float angle =
+        bicepCfg.servo_min_deg +
+        ratio * (bicepCfg.servo_max_deg - bicepCfg.servo_min_deg);
+
+    return safe_constrain_float(angle, bicepCfg.servo_min_deg, bicepCfg.servo_max_deg);
+}
+
+float bicepCurrentMilliAmpsFromADC(int adcValue)
+{
+    if (!bicepHasCurrentCalibration())
+    {
+        return 0.0f;
+    }
+
+    float current_mA =
+        (adcValue - (float)bicepCfg.current_adc_offset) *
+        bicepCfg.current_mA_per_count;
+
+    if (current_mA < 0.0f)
+    {
+        current_mA = 0.0f;
+    }
+
+    return current_mA;
+}
+
+int bicepRestDeg()
+{
+    return cfgRestDeg(bicepCfg);
+}
+
+int bicepMinDeg()
+{
+    return cfgMinDeg(bicepCfg);
+}
+
+int bicepMaxDeg()
+{
+    return cfgMaxDeg(bicepCfg);
+}
+
+int bicepConstrainAngle(int angleDeg)
+{
+    return cfgConstrainAngle(bicepCfg, angleDeg);
+}
+
+int bicepReadFeedbackDeg()
+{
+    int measuredDeg;
+
+    if (bicepHasFeedbackADC() && bicepHasFeedbackCalibration())
+    {
+        int fbAdc = rounded_int(readAveragedADC(bicepCfg.feedback_adc_pin, ADC_SAMPLES));
+        measuredDeg = rounded_int(bicepFeedbackAngleFromADC(fbAdc));
     }
     else
     {
-        initialDeg = rounded_int(cfg.rest_deg);
+        measuredDeg = bicepRestDeg();
     }
 
-    initialDeg = safe_constrain(
-        initialDeg,
-        rounded_int(cfg.allowed_min_deg),
-        rounded_int(cfg.allowed_max_deg)
-    );
+    return bicepConstrainAngle(measuredDeg);
+}
 
-    return initialDeg;
+int bicepReadCurrentMilliAmps()
+{
+    if (!bicepHasCurrentADC() || !bicepHasCurrentCalibration())
+    {
+        return 0;
+    }
+
+    int currentAdc =
+        rounded_int(readAveragedADC(bicepCfg.current_adc_pin, ADC_SAMPLES));
+
+    return rounded_int(bicepCurrentMilliAmpsFromADC(currentAdc));
+}
+
+void updateBicepSensors()
+{
+    if (digitalRead(SERVO_GROUP_1_PIN) == HIGH)
+    {
+        bicep.feedback_deg = bicepReadFeedbackDeg();
+        bicep.current_mA = bicepReadCurrentMilliAmps();
+    }
+    else
+    {
+        bicep.feedback_deg = bicep.current_deg;
+        bicep.current_mA = 0;
+    }
 }
 
 // ============================================================================
 // Power handling
 // ============================================================================
 
-bool servoBelongsToGroup1(uint8_t servoIndex)
+void setGroup1Power(bool enabled)
+{
+    digitalWrite(SERVO_GROUP_1_PIN, enabled ? HIGH : LOW);
+}
+
+void setGroup2Power(bool enabled)
+{
+    digitalWrite(SERVO_GROUP_2_PIN, enabled ? HIGH : LOW);
+}
+
+void allPowerOff()
+{
+    setGroup1Power(false);
+    setGroup2Power(false);
+}
+
+bool auxServoBelongsToGroup1(uint8_t servoIndex)
 {
     return servoIndex == THUMB_R  ||
            servoIndex == INDEX_R  ||
            servoIndex == MIDDLE_R ||
            servoIndex == RING_R   ||
            servoIndex == PINKY_R  ||
-           servoIndex == BICEP_R  ||
            servoIndex == ROTATE_R;
 }
 
-bool servoBelongsToGroup2(uint8_t servoIndex)
+bool auxServoBelongsToGroup2(uint8_t servoIndex)
 {
     return servoIndex == SHOULDER_R ||
            servoIndex == OMOPLATE_R;
 }
 
-void setServoPowerGroup1(bool enabled)
-{
-    digitalWrite(SERVO_GROUP_1_PIN, enabled ? HIGH : LOW);
-}
-
-void setServoPowerGroup2(bool enabled)
-{
-    digitalWrite(SERVO_GROUP_2_PIN, enabled ? HIGH : LOW);
-}
-
-void applyPowerState()
-{
-    setServoPowerGroup1(true);
-    setServoPowerGroup2(false);
-}
-
-void forceServoPowerOff()
-{
-    setServoPowerGroup1(false);
-    setServoPowerGroup2(false);
-}
-
-bool isSelectedServoPowered(uint8_t servoIndex)
-{
-    if (servoBelongsToGroup1(servoIndex))
-    {
-        return digitalRead(SERVO_GROUP_1_PIN) == HIGH;
-    }
-
-    if (servoBelongsToGroup2(servoIndex))
-    {
-        return digitalRead(SERVO_GROUP_2_PIN) == HIGH;
-    }
-
-    return false;
-}
-
 // ============================================================================
-// Fault handling
+// Auxiliary servo handling
 // ============================================================================
 
-void checkServoFault(uint8_t index, const ServoConfig &cfg)
+void initAuxServos()
 {
-    if (!servos[index].attached)
+    for (uint8_t i = 0; i < NUM_AUX_SERVOS; i++)
     {
-        return;
+        ServoConfig cfg;
+        readServoConfig(auxServoIndex[i], cfg);
+
+        aux[i].current_deg = cfgRestDeg(cfg);
+        aux[i].target_deg = cfgRestDeg(cfg);
+        aux[i].speed_pct = cfg.default_speed_pct;
+        aux[i].attached = false;
+        aux[i].last_update = millis();
     }
+}
 
-    if (servos[index].fault_active)
+void attachAuxServosAtRestBeforePower()
+{
+    for (uint8_t i = 0; i < NUM_AUX_SERVOS; i++)
     {
-        return;
-    }
+        ServoConfig cfg;
+        readServoConfig(auxServoIndex[i], cfg);
 
-    if (millis() < servos[index].ignore_current_until)
-    {
-        servos[index].overcurrent_start = 0;
-        return;
-    }
+        int restDeg = cfgRestDeg(cfg);
+        int pwmUs = cfgAngleToPwmUs(cfg, restDeg);
 
-    if (!cfg.fault_detection_enabled)
-    {
-        servos[index].overcurrent_start = 0;
-        return;
-    }
+        aux[i].current_deg = restDeg;
+        aux[i].target_deg = restDeg;
 
-    if (!hasCurrentADC(cfg) || !hasCurrentCalibration(cfg))
-    {
-        servos[index].overcurrent_start = 0;
-        return;
-    }
-
-    int currentAdc = rounded_int(readAveragedADC(cfg.current_adc_pin, ADC_SAMPLES));
-    int currentMilliAmps = rounded_int(currentMilliAmpsFromADC(cfg, currentAdc));
-
-    if (currentMilliAmps > rounded_int(cfg.current_limit_mA))
-    {
-        if (servos[index].overcurrent_start == 0)
+        if (!aux[i].attached)
         {
-            servos[index].overcurrent_start = millis();
+            aux[i].servo.writeMicroseconds(pwmUs);
+            aux[i].servo.attach(cfg.pwm_pin, cfg.pwm_min_us, cfg.pwm_max_us);
+            aux[i].attached = true;
         }
 
-        if (millis() - servos[index].overcurrent_start >= cfg.overcurrent_time_ms)
+        aux[i].servo.writeMicroseconds(pwmUs);
+        aux[i].last_update = millis();
+    }
+}
+
+void detachAuxServos()
+{
+    for (uint8_t i = 0; i < NUM_AUX_SERVOS; i++)
+    {
+        if (aux[i].attached)
         {
-            servos[index].fault_active = true;
-            servos[index].servo.detach();
-            servos[index].attached = false;
-            servos[index].overcurrent_start = 0;
+            aux[i].servo.detach();
+            aux[i].attached = false;
+        }
+    }
+}
+
+void setAuxTargetsRest()
+{
+    for (uint8_t i = 0; i < NUM_AUX_SERVOS; i++)
+    {
+        ServoConfig cfg;
+        readServoConfig(auxServoIndex[i], cfg);
+        aux[i].target_deg = cfgRestDeg(cfg);
+    }
+}
+
+void setAuxTargetsMin()
+{
+    for (uint8_t i = 0; i < NUM_AUX_SERVOS; i++)
+    {
+        ServoConfig cfg;
+        readServoConfig(auxServoIndex[i], cfg);
+        aux[i].target_deg = cfgMinDeg(cfg);
+    }
+}
+
+void setAuxTargetsMax()
+{
+    for (uint8_t i = 0; i < NUM_AUX_SERVOS; i++)
+    {
+        ServoConfig cfg;
+        readServoConfig(auxServoIndex[i], cfg);
+        aux[i].target_deg = cfgMaxDeg(cfg);
+    }
+}
+
+void updateAuxServos()
+{
+    unsigned long now = millis();
+
+    for (uint8_t i = 0; i < NUM_AUX_SERVOS; i++)
+    {
+        if (!aux[i].attached)
+        {
+            continue;
+        }
+
+        if (now - aux[i].last_update < SERVO_UPDATE_MS)
+        {
+            continue;
+        }
+
+        aux[i].last_update = now;
+
+        ServoConfig cfg;
+        readServoConfig(auxServoIndex[i], cfg);
+
+        aux[i].target_deg = cfgConstrainAngle(cfg, aux[i].target_deg);
+
+        int step = cfgComputeStepDeg(cfg, aux[i].speed_pct);
+
+        if (aux[i].current_deg < aux[i].target_deg)
+        {
+            aux[i].current_deg += step;
+
+            if (aux[i].current_deg > aux[i].target_deg)
+            {
+                aux[i].current_deg = aux[i].target_deg;
+            }
+        }
+        else if (aux[i].current_deg > aux[i].target_deg)
+        {
+            aux[i].current_deg -= step;
+
+            if (aux[i].current_deg < aux[i].target_deg)
+            {
+                aux[i].current_deg = aux[i].target_deg;
+            }
+        }
+
+        aux[i].current_deg = cfgConstrainAngle(cfg, aux[i].current_deg);
+
+        int pwmUs = cfgAngleToPwmUs(cfg, aux[i].current_deg);
+        aux[i].servo.writeMicroseconds(pwmUs);
+    }
+}
+
+bool auxServosAtTarget()
+{
+    for (uint8_t i = 0; i < NUM_AUX_SERVOS; i++)
+    {
+        if (aux[i].current_deg != aux[i].target_deg)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+// ============================================================================
+// BICEP_R PWM and motion
+// ============================================================================
+
+void detachBicepPwm()
+{
+    if (bicep.attached)
+    {
+        bicep.servo.detach();
+    }
+
+    bicep.attached = false;
+}
+
+void attachBicepFromMeasuredPosition()
+{
+    updateBicepSensors();
+
+    bicep.current_deg = bicepConstrainAngle(bicep.feedback_deg);
+    bicep.target_deg = bicep.current_deg;
+
+    int pwmUs = cfgAngleToPwmUs(bicepCfg, bicep.current_deg);
+
+    /*
+      Critical BICEP_R safety rule:
+      PWM is attached only after feedback has been read.
+      The first commanded pulse corresponds to the measured current position.
+    */
+    bicep.servo.writeMicroseconds(pwmUs);
+    bicep.servo.attach(
+        bicepCfg.pwm_pin,
+        bicepCfg.pwm_min_us,
+        bicepCfg.pwm_max_us
+    );
+    bicep.servo.writeMicroseconds(pwmUs);
+
+    bicep.attached = true;
+    bicep.fault_active = false;
+    bicep.overcurrent_start = 0;
+    bicep.last_update = millis();
+}
+
+void setBicepTargetRest()
+{
+    bicep.target_deg = bicepRestDeg();
+}
+
+void setBicepTargetMin()
+{
+    bicep.target_deg = bicepMinDeg();
+}
+
+void setBicepTargetMax()
+{
+    bicep.target_deg = bicepMaxDeg();
+}
+
+void checkBicepFault()
+{
+    if (!bicep.attached)
+    {
+        bicep.overcurrent_start = 0;
+        return;
+    }
+
+    if (bicep.fault_active)
+    {
+        return;
+    }
+
+    if (!bicepCfg.fault_detection_enabled)
+    {
+        bicep.overcurrent_start = 0;
+        return;
+    }
+
+    if (!bicepHasCurrentADC() || !bicepHasCurrentCalibration())
+    {
+        bicep.overcurrent_start = 0;
+        return;
+    }
+
+    updateBicepSensors();
+
+    if (bicep.current_mA > rounded_int(bicepCfg.current_limit_mA))
+    {
+        if (bicep.overcurrent_start == 0)
+        {
+            bicep.overcurrent_start = millis();
+        }
+
+        if (millis() - bicep.overcurrent_start >= bicepCfg.overcurrent_time_ms)
+        {
+            bicep.fault_active = true;
+            detachBicepPwm();
+            mode = MODE_FAULT;
         }
     }
     else
     {
-        servos[index].overcurrent_start = 0;
+        bicep.overcurrent_start = 0;
     }
 }
 
-// ============================================================================
-// Servo state handling
-// ============================================================================
-
-void initServoState(uint8_t index)
+void updateBicepMotion()
 {
-    ServoConfig cfg;
-    readServoConfig(index, cfg);
-
-    servos[index].current = rounded_int(cfg.rest_deg);
-    servos[index].target = rounded_int(cfg.rest_deg);
-
-    servos[index].current_speed_pct = cfg.default_speed_pct;
-    servos[index].current_accel_pct = cfg.default_accel_pct;
-
-    servos[index].fault_active = false;
-    servos[index].first_commanded = false;
-    servos[index].attached = false;
-
-    servos[index].last_update = millis();
-    servos[index].overcurrent_start = 0;
-    servos[index].ignore_current_until = 0;
-}
-
-void initAllServoStates()
-{
-    for (uint8_t i = 0; i < NUM_SERVOS; i++)
+    if (!bicep.attached)
     {
-        initServoState(i);
+        updateBicepSensors();
+        return;
     }
-}
 
-void loadActiveServo()
-{
-    readServoConfig(currentServoIndex, activeCfg);
-}
+    checkBicepFault();
 
-void attachGroup1ServosFromFeedback()
-{
+    if (bicep.fault_active || mode == MODE_FAULT)
+    {
+        return;
+    }
+
     unsigned long now = millis();
 
-    for (uint8_t i = 0; i < NUM_SERVOS; i++)
+    if (now - bicep.last_update < SERVO_UPDATE_MS)
     {
-        if (!servoBelongsToGroup1(i))
-        {
-            continue;
-        }
-
-        ServoConfig cfg;
-        readServoConfig(i, cfg);
-
-        int initialDeg = readInitialServoAngle(cfg);
-
-        servos[i].current = initialDeg;
-
-        servos[i].target = safe_constrain(
-            rounded_int(cfg.rest_deg),
-            rounded_int(cfg.allowed_min_deg),
-            rounded_int(cfg.allowed_max_deg)
-        );
-
-        int pwmUs = angleToPwmUs(cfg, servos[i].current);
-
-        /*
-          Preload the pulse width before attach().
-
-          This avoids the Servo library starting with its default pulse value
-          before the sketch writes the measured current position.
-        */
-        servos[i].servo.writeMicroseconds(pwmUs);
-        servos[i].servo.attach(cfg.pwm_pin, cfg.pwm_min_us, cfg.pwm_max_us);
-        servos[i].servo.writeMicroseconds(pwmUs);
-
-        servos[i].attached = true;
-        servos[i].fault_active = false;
-        servos[i].overcurrent_start = 0;
-        servos[i].ignore_current_until = now + CURRENT_STARTUP_GRACE;
-        servos[i].last_update = now;
+        return;
     }
+
+    bicep.last_update = now;
+
+    bicep.target_deg = bicepConstrainAngle(bicep.target_deg);
+
+    int step = cfgComputeStepDeg(bicepCfg, bicep.speed_pct);
+
+    if (bicep.current_deg < bicep.target_deg)
+    {
+        bicep.current_deg += step;
+
+        if (bicep.current_deg > bicep.target_deg)
+        {
+            bicep.current_deg = bicep.target_deg;
+        }
+    }
+    else if (bicep.current_deg > bicep.target_deg)
+    {
+        bicep.current_deg -= step;
+
+        if (bicep.current_deg < bicep.target_deg)
+        {
+            bicep.current_deg = bicep.target_deg;
+        }
+    }
+
+    bicep.current_deg = bicepConstrainAngle(bicep.current_deg);
+
+    int pwmUs = cfgAngleToPwmUs(bicepCfg, bicep.current_deg);
+    bicep.servo.writeMicroseconds(pwmUs);
 }
 
-void updateGroup1Servos()
+bool bicepAtTarget()
 {
-    unsigned long now = millis();
-
-    for (uint8_t i = 0; i < NUM_SERVOS; i++)
-    {
-        if (!servoBelongsToGroup1(i))
-        {
-            continue;
-        }
-
-        if (!servos[i].attached)
-        {
-            continue;
-        }
-
-        if (now - servos[i].last_update < SERVO_UPDATE_MS)
-        {
-            continue;
-        }
-
-        servos[i].last_update = now;
-
-        ServoConfig cfg;
-        readServoConfig(i, cfg);
-
-        checkServoFault(i, cfg);
-
-        if (servos[i].fault_active)
-        {
-            continue;
-        }
-
-        servos[i].target = safe_constrain(
-            rounded_int(cfg.rest_deg),
-            rounded_int(cfg.allowed_min_deg),
-            rounded_int(cfg.allowed_max_deg)
-        );
-
-        int step = computeStepDeg(cfg, i);
-
-        if (servos[i].current < servos[i].target)
-        {
-            servos[i].current += step;
-
-            if (servos[i].current > servos[i].target)
-            {
-                servos[i].current = servos[i].target;
-            }
-        }
-        else if (servos[i].current > servos[i].target)
-        {
-            servos[i].current -= step;
-
-            if (servos[i].current < servos[i].target)
-            {
-                servos[i].current = servos[i].target;
-            }
-        }
-
-        servos[i].current = safe_constrain(
-            servos[i].current,
-            rounded_int(cfg.allowed_min_deg),
-            rounded_int(cfg.allowed_max_deg)
-        );
-
-        int pwmUs = angleToPwmUs(cfg, servos[i].current);
-        servos[i].servo.writeMicroseconds(pwmUs);
-    }
+    return bicep.current_deg == bicep.target_deg;
 }
 
 // ============================================================================
-// Button handling
+// Shutdown
 // ============================================================================
 
-bool nextButtonPressedEvent()
+void shutdownToPowerOff()
 {
-    bool reading = digitalRead(NEXT_BUTTON_PIN);
+    detachBicepPwm();
+    detachAuxServos();
 
-    if (reading != lastButtonReading)
-    {
-        lastDebounceTime = millis();
-        lastButtonReading = reading;
-    }
+    allPowerOff();
 
-    if ((millis() - lastDebounceTime) > DEBOUNCE_MS)
-    {
-        if (reading != stableButtonState)
-        {
-            stableButtonState = reading;
+    bicep.current_deg = bicepRestDeg();
+    bicep.target_deg = bicepRestDeg();
+    bicep.feedback_deg = bicep.current_deg;
+    bicep.current_mA = 0;
+    bicep.fault_active = false;
+    bicep.overcurrent_start = 0;
 
-            if (stableButtonState == LOW)
-            {
-                return true;
-            }
-        }
-    }
+    initAuxServos();
 
-    return false;
-}
-
-void selectNextServo()
-{
-    currentServoIndex++;
-
-    if (currentServoIndex >= NUM_SERVOS)
-    {
-        currentServoIndex = 0;
-    }
-
-    loadActiveServo();
+    mode = MODE_POWER_OFF;
 }
 
 // ============================================================================
@@ -692,115 +880,205 @@ void printRow(uint8_t row, const char *text)
     }
 }
 
-void oledPrintSplash()
+const char* modeText()
 {
-    oled.clearDisplay();
-    resetOledCache();
-
-    printRow(0, "SUBSYSTEM 1");
-    printRow(2, "G1 power ON");
-    printRow(3, "Wait feedback");
-    printRow(4, "settling...");
-    printRow(6, "G2 power OFF");
+    switch (mode)
+    {
+        case MODE_POWER_OFF:
+            return "PWR OFF";
+        case MODE_TO_REST:
+            return "TO REST";
+        case MODE_TO_MAX:
+            return "TO MAX";
+        case MODE_TO_MIN:
+            return "TO MIN";
+        case MODE_REST_THEN_OFF:
+            return "REST+OFF";
+        case MODE_FAULT:
+            return "FAULT";
+        default:
+            return "?";
+    }
 }
 
 void updateDisplay()
 {
-    int feedbackDeg = 0;
-    int currentMilliAmps = 0;
-
-    bool hasFb = hasFeedbackADC(activeCfg);
-    bool hasFbCal = hasFeedbackCalibration(activeCfg);
-
-    bool hasCur = hasCurrentADC(activeCfg);
-    bool hasCurCal = hasCurrentCalibration(activeCfg);
-
-    bool selectedServoPowered = isSelectedServoPowered(currentServoIndex);
-
-    if (hasFb && hasFbCal)
-    {
-        int feedbackAdc =
-            rounded_int(readAveragedADC(activeCfg.feedback_adc_pin, ADC_SAMPLES));
-
-        feedbackDeg =
-            rounded_int(feedbackAngleFromADC(activeCfg, feedbackAdc));
-    }
-
-    if (hasCur && hasCurCal)
-    {
-        int currentAdc =
-            rounded_int(readAveragedADC(activeCfg.current_adc_pin, ADC_SAMPLES));
-
-        currentMilliAmps =
-            rounded_int(currentMilliAmpsFromADC(activeCfg, currentAdc));
-    }
+    updateBicepSensors();
 
     char row[OLED_COLS + 1];
 
-    snprintf(row, sizeof(row), "S:%u/%u %.8s",
-             currentServoIndex,
-             NUM_SERVOS - 1,
-             activeCfg.name);
+    snprintf(row, sizeof(row), "SUBSYS1 SAFE");
     printRow(0, row);
 
-    snprintf(row, sizeof(row), "PWR:%s OUT:%s",
-             selectedServoPowered ? "ON" : "OFF",
-             servos[currentServoIndex].attached ? "ON" : "OFF");
+    snprintf(row, sizeof(row), "%s", modeText());
     printRow(1, row);
 
-    snprintf(row, sizeof(row), "Lim:%d-%d",
-             rounded_int(activeCfg.allowed_min_deg),
-             rounded_int(activeCfg.allowed_max_deg));
+    snprintf(row, sizeof(row), "G1:%s G2:%s",
+             digitalRead(SERVO_GROUP_1_PIN) ? "ON" : "OFF",
+             digitalRead(SERVO_GROUP_2_PIN) ? "ON" : "OFF");
     printRow(2, row);
 
-    snprintf(row, sizeof(row), "R:%d Set:%d",
-             rounded_int(activeCfg.rest_deg),
-             servos[currentServoIndex].current);
+    snprintf(row, sizeof(row), "FB:%d Set:%d",
+             bicep.feedback_deg,
+             bicep.current_deg);
     printRow(3, row);
 
-    snprintf(row, sizeof(row), "Sp:%d Ac:%d",
-             servos[currentServoIndex].current_speed_pct,
-             servos[currentServoIndex].current_accel_pct);
+    snprintf(row, sizeof(row), "T:%d R:%d",
+             bicep.target_deg,
+             bicepRestDeg());
     printRow(4, row);
 
-    if (hasFb && hasFbCal && hasCur && hasCurCal)
-    {
-        snprintf(row, sizeof(row), "FB:%d I:%dmA",
-                 feedbackDeg,
-                 currentMilliAmps);
-    }
-    else if (hasFb && hasFbCal)
-    {
-        snprintf(row, sizeof(row), "FB:%d I:-",
-                 feedbackDeg);
-    }
-    else if (hasCur && hasCurCal)
-    {
-        snprintf(row, sizeof(row), "FB:- I:%dmA",
-                 currentMilliAmps);
-    }
-    else
-    {
-        snprintf(row, sizeof(row), "FB:- I:-");
-    }
-
+    snprintf(row, sizeof(row), "Lim:%d-%d",
+             bicepMinDeg(),
+             bicepMaxDeg());
     printRow(5, row);
 
-    snprintf(row, sizeof(row), "FD:%s ST:%s",
-             activeCfg.fault_detection_enabled ? "ON" : "OFF",
-             servos[currentServoIndex].fault_active ? "FAULT" : "OK");
+    snprintf(row, sizeof(row), "I:%dmA L:%d",
+             bicep.current_mA,
+             rounded_int(bicepCfg.current_limit_mA));
     printRow(6, row);
 
-    if (servoBelongsToGroup1(currentServoIndex))
+    snprintf(row, sizeof(row), "FD:%s ST:%s",
+             bicepCfg.fault_detection_enabled ? "ON" : "OFF",
+             bicep.fault_active ? "FLT" : "OK");
+    printRow(7, row);
+}
+
+void splashPowerSettling()
+{
+    oled.clearDisplay();
+    resetOledCache();
+
+    printRow(0, "SUBSYS1 SAFE");
+    printRow(2, "Aux PWM rest");
+    printRow(3, "D12+D13 ON");
+    printRow(4, "Read bicep FB");
+    printRow(6, "Wait 2 sec");
+}
+
+// ============================================================================
+// Button handling
+// ============================================================================
+
+bool nextButtonPressedEvent()
+{
+    bool reading = digitalRead(NEXT_BUTTON_PIN);
+
+    if (reading != lastButtonReading)
     {
-        snprintf(row, sizeof(row), "Mode:G1 REST");
-    }
-    else
-    {
-        snprintf(row, sizeof(row), "Mode:G2 OFF");
+        lastDebounceTime = millis();
+        lastButtonReading = reading;
     }
 
-    printRow(7, row);
+    if ((millis() - lastDebounceTime) > DEBOUNCE_MS)
+    {
+        if (reading != stableButtonState)
+        {
+            stableButtonState = reading;
+
+            if (stableButtonState == LOW)
+            {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+void handleButtonPress()
+{
+    if (mode == MODE_POWER_OFF)
+    {
+        detachBicepPwm();
+        detachAuxServos();
+
+        /*
+          Required safe startup:
+
+          1. D12 and D13 still OFF.
+          2. All non-feedback servos receive rest PWM.
+          3. D12 and D13 ON.
+          4. Wait 2 s.
+          5. Read BICEP_R feedback.
+          6. Attach BICEP_R from measured position.
+          7. Move BICEP_R to rest.
+        */
+        attachAuxServosAtRestBeforePower();
+
+        setGroup1Power(true);
+        setGroup2Power(true);
+
+        mode = MODE_TO_REST;
+
+        splashPowerSettling();
+        delay(POWER_SETTLE_MS);
+
+        updateBicepSensors();
+
+        bicep.current_deg = bicepConstrainAngle(bicep.feedback_deg);
+        bicep.target_deg = bicep.current_deg;
+        bicep.fault_active = false;
+        bicep.overcurrent_start = 0;
+
+        attachBicepFromMeasuredPosition();
+
+        setAuxTargetsRest();
+        setBicepTargetRest();
+
+        resetOledCache();
+        oled.clearDisplay();
+        updateDisplay();
+
+        return;
+    }
+
+    if (mode == MODE_TO_REST)
+    {
+        setAuxTargetsMax();
+        setBicepTargetMax();
+
+        mode = MODE_TO_MAX;
+
+        updateDisplay();
+        return;
+    }
+
+    if (mode == MODE_TO_MAX)
+    {
+        setAuxTargetsMin();
+        setBicepTargetMin();
+
+        mode = MODE_TO_MIN;
+
+        updateDisplay();
+        return;
+    }
+
+    if (mode == MODE_TO_MIN)
+    {
+        setAuxTargetsRest();
+        setBicepTargetRest();
+
+        mode = MODE_REST_THEN_OFF;
+
+        updateDisplay();
+        return;
+    }
+
+    if (mode == MODE_REST_THEN_OFF)
+    {
+        shutdownToPowerOff();
+        updateDisplay();
+        return;
+    }
+
+    if (mode == MODE_FAULT)
+    {
+        shutdownToPowerOff();
+        updateDisplay();
+        return;
+    }
 }
 
 // ============================================================================
@@ -812,7 +1090,7 @@ void setup()
     pinMode(SERVO_GROUP_1_PIN, OUTPUT);
     pinMode(SERVO_GROUP_2_PIN, OUTPUT);
 
-    forceServoPowerOff();
+    allPowerOff();
 
     pinMode(NEXT_BUTTON_PIN, INPUT_PULLUP);
 
@@ -822,6 +1100,21 @@ void setup()
 
     analogReference(EXTERNAL);
 
+    readBicepConfig();
+
+    bicep.current_deg = bicepRestDeg();
+    bicep.target_deg = bicepRestDeg();
+    bicep.feedback_deg = bicep.current_deg;
+    bicep.current_mA = 0;
+    bicep.speed_pct = bicepCfg.default_speed_pct;
+    bicep.accel_pct = bicepCfg.default_accel_pct;
+    bicep.attached = false;
+    bicep.fault_active = false;
+    bicep.last_update = millis();
+    bicep.overcurrent_start = 0;
+
+    initAuxServos();
+
     Wire.begin();
 
     oled.begin();
@@ -829,32 +1122,9 @@ void setup()
     oled.setFont(u8x8_font_chroma48medium8_r);
 
     resetOledCache();
-
-    initAllServoStates();
-
-    currentServoIndex = THUMB_R;
-    loadActiveServo();
-
-    /*
-      Safe startup sequence:
-
-      1. Keep all servo PWM outputs detached.
-      2. Enable group 1 power.
-      3. Wait for servo electronics and feedback circuitry to settle.
-      4. Read feedback.
-      5. Attach servo output using the measured current position.
-      6. Move gradually toward rest.
-    */
-
-    applyPowerState();
-    oledPrintSplash();
-
-    delay(POWER_SETTLE_MS);
-
-    attachGroup1ServosFromFeedback();
-
-    resetOledCache();
     oled.clearDisplay();
+
+    mode = MODE_POWER_OFF;
 
     updateDisplay();
     lastDisplayUpdate = millis();
@@ -866,14 +1136,20 @@ void setup()
 
 void loop()
 {
-    applyPowerState();
+    updateAuxServos();
+    updateBicepMotion();
 
-    updateGroup1Servos();
+    if (mode == MODE_REST_THEN_OFF)
+    {
+        if (auxServosAtTarget() && bicepAtTarget())
+        {
+            shutdownToPowerOff();
+        }
+    }
 
     if (nextButtonPressedEvent())
     {
-        selectNextServo();
-        updateDisplay();
+        handleButtonPress();
     }
 
     if (millis() - lastDisplayUpdate >= DISPLAY_UPDATE_MS)

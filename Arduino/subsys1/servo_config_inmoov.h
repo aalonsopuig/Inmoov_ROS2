@@ -3,7 +3,7 @@
 File:         servo_config_inmoov.h
 Version:      1.1.0
 Author:       Alejandro Alonso Puig (https://github.com/aalonsopuig) + GPT
-Date:         2026-06-08
+Date:         2026-06-10
 License:      Apache 2.0
 -------------------------------------------------------------------------------
 Description:
@@ -122,28 +122,95 @@ const int PIN_BICEP_CURRENT_ADC  = A1;
 //
 // Field order:
 //
-// name,
-// pwm_pin,
-// servo_min_deg,
-// servo_max_deg,
-// allowed_min_deg,
-// allowed_max_deg,
-// rest_deg,
-// pwm_min_us,
-// pwm_max_us,
-// max_speed_degps,
-// default_speed_pct,
-// default_accel_pct,
-// feedback_adc_pin,
-// fb_adc_at_servo_min_deg,
-// fb_adc_at_servo_max_deg,
-// current_adc_pin,
-// current_limit_mA,
-// overcurrent_time_ms,
-// current_adc_offset,
-// current_mA_per_count,
-// inverted,
+// name
+//   Text identifier of the servo. Used mainly for OLED/debug display.
+//
+// pwm_pin
+//   Arduino digital pin connected to the servo PWM signal.
+//
+// servo_min_deg
+//   Minimum logical angle of the servo model.
+//   Usually 0 degrees. Used for angle-to-PWM conversion and feedback mapping.
+//
+// servo_max_deg
+//   Maximum logical angle of the servo model.
+//   Usually 180 degrees. Used for angle-to-PWM conversion and feedback mapping.
+//
+// allowed_min_deg
+//   Minimum mechanically safe angle for this joint.
+//   Commands and startup positions are constrained to this limit.
+//
+// allowed_max_deg
+//   Maximum mechanically safe angle for this joint.
+//   Commands and startup positions are constrained to this limit.
+//
+// rest_deg
+//   Safe rest angle for the joint.
+//   In the current validation firmware, this is the default target position.
+//
+// pwm_min_us
+//   PWM pulse width, in microseconds, corresponding to servo_min_deg.
+//   Used by Servo.attach(pin, min, max) and by manual angle-to-PWM conversion.
+//
+// pwm_max_us
+//   PWM pulse width, in microseconds, corresponding to servo_max_deg.
+//   Used by Servo.attach(pin, min, max) and by manual angle-to-PWM conversion.
+//
+// max_speed_degps
+//   Maximum angular speed assumed for this servo, in degrees per second.
+//   Runtime speed is calculated as:
+//     effective_speed = max_speed_degps * current_speed_pct / 100
+//
+// default_speed_pct
+//   Default runtime speed percentage loaded at startup.
+//   Valid practical range: 0 to 100.
+//   In the current firmware it is constrained internally to 1..100 when moving.
+//
+// default_accel_pct
+//   Default runtime acceleration percentage loaded at startup.
+//   Currently stored and displayed, but not used for trajectory calculation.
+//   Kept for compatibility with future versions.
+//
+// feedback_adc_pin
+//   Analog input pin used to read position feedback.
+//   Use A0, A1, etc. Use -1 if the servo has no feedback.
+//
+// fb_adc_at_servo_min_deg
+//   ADC value measured when the servo is at servo_min_deg.
+//   Used to convert feedback ADC readings into degrees.
+//
+// fb_adc_at_servo_max_deg
+//   ADC value measured when the servo is at servo_max_deg.
+//   Used to convert feedback ADC readings into degrees.
+//
+// current_adc_pin
+//   Analog input pin used to read servo current.
+//   Use A0, A1, etc. Use -1 if the servo has no current sensing.
+//
+// current_limit_mA
+//   Current limit in milliamps.
+//   If fault detection is enabled and current stays above this value for longer
+//   than overcurrent_time_ms, the servo enters fault state.
+//
+// overcurrent_time_ms
+//   Time in milliseconds that overcurrent must persist before declaring a fault.
+//
+// current_adc_offset
+//   ADC offset of the current-sensing circuit at zero current.
+//   Used in:
+//     current_mA = (adc - current_adc_offset) * current_mA_per_count
+//
+// current_mA_per_count
+//   Current conversion factor in milliamps per ADC count.
+//   Used together with current_adc_offset to estimate current.
+//
+// inverted
+//   If true, reverses the logical angle-to-PWM relationship.
+//   Useful when the servo is mechanically mounted in the opposite direction.
+//
 // fault_detection_enabled
+//   Enables or disables runtime fault detection for this servo.
+//   Requires a valid current_adc_pin and current calibration parameters.
 //
 // ============================================================================
 
@@ -160,7 +227,7 @@ const ServoConfig servoConfigs[NUM_SERVOS] PROGMEM =
         578,                    // pwm_min_us
         2300,                   // pwm_max_us
         315.8f,                 // max_speed_degps
-        100,                    // default_speed_pct
+        50,                     // default_speed_pct
         100,                    // default_accel_pct
         -1,                     // feedback_adc_pin disabled
         0,                      // fb_adc_at_servo_min_deg
@@ -178,13 +245,13 @@ const ServoConfig servoConfigs[NUM_SERVOS] PROGMEM =
         PIN_INDEX_R,            // pwm_pin
         0,                      // servo_min_deg
         180,                    // servo_max_deg
-        70,                     // allowed_min_deg
+        80,                     // allowed_min_deg
         160,                    // allowed_max_deg
         150,                    // rest_deg
         578,                    // pwm_min_us
         2300,                   // pwm_max_us
         315.8f,                 // max_speed_degps
-        100,                    // default_speed_pct
+        50,                     // default_speed_pct
         100,                    // default_accel_pct
         -1,                     // feedback_adc_pin disabled
         0,                      // fb_adc_at_servo_min_deg
@@ -202,13 +269,13 @@ const ServoConfig servoConfigs[NUM_SERVOS] PROGMEM =
         PIN_MIDDLE_R,           // pwm_pin
         0,                      // servo_min_deg
         180,                    // servo_max_deg
-        55,                     // allowed_min_deg
+        65,                     // allowed_min_deg
         166,                    // allowed_max_deg
         150,                    // rest_deg
         578,                    // pwm_min_us
         2300,                   // pwm_max_us
         315.8f,                 // max_speed_degps
-        100,                    // default_speed_pct
+        50,                     // default_speed_pct
         100,                    // default_accel_pct
         -1,                     // feedback_adc_pin disabled
         0,                      // fb_adc_at_servo_min_deg
@@ -226,13 +293,13 @@ const ServoConfig servoConfigs[NUM_SERVOS] PROGMEM =
         PIN_RING_R,             // pwm_pin
         0,                      // servo_min_deg
         180,                    // servo_max_deg
-        60,                     // allowed_min_deg
+        70,                     // allowed_min_deg
         162,                    // allowed_max_deg
         160,                    // rest_deg
         578,                    // pwm_min_us
         2300,                   // pwm_max_us
         315.8f,                 // max_speed_degps
-        100,                    // default_speed_pct
+        50,                     // default_speed_pct
         100,                    // default_accel_pct
         -1,                     // feedback_adc_pin disabled
         0,                      // fb_adc_at_servo_min_deg
@@ -250,13 +317,13 @@ const ServoConfig servoConfigs[NUM_SERVOS] PROGMEM =
         PIN_PINKY_R,            // pwm_pin
         0,                      // servo_min_deg
         180,                    // servo_max_deg
-        75,                     // allowed_min_deg
+        95,                     // allowed_min_deg
         168,                    // allowed_max_deg
         155,                    // rest_deg
         578,                    // pwm_min_us
         2300,                   // pwm_max_us
         315.8f,                 // max_speed_degps
-        100,                    // default_speed_pct
+        50,                     // default_speed_pct
         100,                    // default_accel_pct
         -1,                     // feedback_adc_pin disabled
         0,                      // fb_adc_at_servo_min_deg
@@ -275,12 +342,12 @@ const ServoConfig servoConfigs[NUM_SERVOS] PROGMEM =
         0,                      // servo_min_deg
         180,                    // servo_max_deg
         16,                     // allowed_min_deg
-        100,                    // allowed_max_deg
+        95,                     // allowed_max_deg
         20,                     // rest_deg
         677,                    // pwm_min_us
         2350,                   // pwm_max_us
         35.0f,                  // max_speed_degps
-        100,                    // default_speed_pct
+        40,                     // default_speed_pct
         100,                    // default_accel_pct
         PIN_BICEP_POSITION_ADC, // feedback_adc_pin
         148,                    // fb_adc_at_servo_min_deg
@@ -304,7 +371,7 @@ const ServoConfig servoConfigs[NUM_SERVOS] PROGMEM =
         677,                    // pwm_min_us
         2350,                   // pwm_max_us
         20.0f,                  // max_speed_degps
-        100,                    // default_speed_pct
+        50,                     // default_speed_pct
         100,                    // default_accel_pct
         -1,                     // feedback_adc_pin disabled
         0,                      // fb_adc_at_servo_min_deg
@@ -328,7 +395,7 @@ const ServoConfig servoConfigs[NUM_SERVOS] PROGMEM =
         677,                    // pwm_min_us
         2350,                   // pwm_max_us
         20.0f,                  // max_speed_degps
-        100,                    // default_speed_pct
+        10,                     // default_speed_pct
         100,                    // default_accel_pct
         -1,                     // feedback_adc_pin disabled
         0,                      // fb_adc_at_servo_min_deg
@@ -352,7 +419,7 @@ const ServoConfig servoConfigs[NUM_SERVOS] PROGMEM =
         677,                    // pwm_min_us
         2350,                   // pwm_max_us
         35.0f,                  // max_speed_degps
-        100,                    // default_speed_pct
+        10,                     // default_speed_pct
         100,                    // default_accel_pct
         -1,                     // feedback_adc_pin disabled
         0,                      // fb_adc_at_servo_min_deg
