@@ -342,16 +342,16 @@ const ServoConfig servoConfigs[NUM_SERVOS] PROGMEM =
         0,                      // servo_min_deg
         180,                    // servo_max_deg
         16,                     // allowed_min_deg
-        95,                     // allowed_max_deg
-        20,                     // rest_deg
+        85,                     // allowed_max_deg
+        22,                     // rest_deg
         677,                    // pwm_min_us
         2350,                   // pwm_max_us
         35.0f,                  // max_speed_degps
         40,                     // default_speed_pct
         100,                    // default_accel_pct
         PIN_BICEP_POSITION_ADC, // feedback_adc_pin
-        148,                    // fb_adc_at_servo_min_deg
-        568,                    // fb_adc_at_servo_max_deg
+        153,                    // fb_adc_at_servo_min_deg
+        581,                    // fb_adc_at_servo_max_deg
         PIN_BICEP_CURRENT_ADC,  // current_adc_pin
         1100,                   // current_limit_mA
         500,                    // overcurrent_time_ms

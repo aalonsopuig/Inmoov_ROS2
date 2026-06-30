@@ -1,63 +1,47 @@
 /*
 ===============================================================================
 File:         subsys_1.ino
-Version:      1.15.0
+Version:      1.24.0
 Author:       Alejandro Alonso Puig (https://github.com/aalonsopuig) + GPT
-Date:         2026-06-10
+Date:         2026-06-15
 License:      Apache 2.0
 -------------------------------------------------------------------------------
 Description:
 
-Safe full Subsystem 1 validation firmware for InMoov.
+Final integrated validation firmware for InMoov Subsystem 1.
 
-Controlled servos:
-
-Group 1, D12:
-- THUMB_R
-- INDEX_R
-- MIDDLE_R
-- RING_R
-- PINKY_R
-- BICEP_R
-- ROTATE_R
-
-Group 2, D13:
-- SHOULDER_R
-- OMOPLATE_R
-
-Required sequence:
+Corrected sequence:
 
 - Startup:
   D12 OFF, D13 OFF, no PWM.
 
 - Button press 1:
-  Generate PWM at rest for all non-feedback servos while D12 and D13 are still OFF:
-  fingers, ROTATE_R, SHOULDER_R and OMOPLATE_R.
+  Activate rest PWM in all servos except BICEP_R.
   Enable D12 and D13.
   Wait 2 seconds.
-  Read BICEP_R feedback.
-  Use measured BICEP_R position as current position.
-  Attach BICEP_R PWM from that measured position.
-  Move BICEP_R to rest.
-  Result: all servos go to rest.
+  Read and display BICEP_R feedback.
+  DO NOT attach BICEP_R.
+  DO NOT send PWM to BICEP_R.
 
 - Button press 2:
-  Move all servos to maximum allowed position.
+  Read BICEP_R feedback again.
+  Use feedback_deg_safe as the initial commanded position.
+  Attach BICEP_R for the first time.
+  Move BICEP_R to rest.
 
 - Button press 3:
-  Move all servos to minimum allowed position.
+  Move all servos to maximum allowed position.
 
 - Button press 4:
+  Move all servos to minimum allowed position.
+
+- Button press 5:
   Move all servos to rest.
   When all reach rest, detach PWM and switch D12 and D13 OFF.
 
-Safety:
-
-- BICEP_R is never attached before feedback has been read.
-- BICEP_R always starts from measured feedback position.
-- BICEP_R current fault detection is active whenever BICEP_R PWM is active.
-- All commanded angles are constrained to the configured allowed limits.
-- Non-feedback servos receive a valid rest PWM before their power groups are enabled.
+- Fault:
+  If BICEP_R overcurrent is detected, detach BICEP_R PWM and enter FAULT.
+  Next button press switches everything OFF and returns to initial state.
 
 ===============================================================================
 */
@@ -100,7 +84,7 @@ char lastOledRows[OLED_ROWS][OLED_COLS + 1];
 #define POWER_SETTLE_MS  2000
 
 // ============================================================================
-// Auxiliary servos: all non-feedback servos in subsystem 1
+// Auxiliary servos
 // ============================================================================
 
 #define NUM_AUX_SERVOS 8
@@ -136,6 +120,7 @@ AuxServoState aux[NUM_AUX_SERVOS];
 enum TestMode
 {
     MODE_POWER_OFF = 0,
+    MODE_BICEP_MEASURED,
     MODE_TO_REST,
     MODE_TO_MAX,
     MODE_TO_MIN,
@@ -149,8 +134,13 @@ struct BicepState
 
     int current_deg;
     int target_deg;
-    int feedback_deg;
+
+    int feedback_adc;
+    int feedback_deg_raw;
+    int feedback_deg_safe;
+
     int current_mA;
+    int pwm_us;
 
     int speed_pct;
     int accel_pct;
@@ -194,13 +184,16 @@ int rounded_int(float value)
 
 int safe_constrain_int(int value, int min_val, int max_val)
 {
-    return constrain(value, min_val, max_val);
-}
+    if (value < min_val)
+    {
+        return min_val;
+    }
 
-float safe_constrain_float(float value, float min_val, float max_val)
-{
-    if (value < min_val) return min_val;
-    if (value > max_val) return max_val;
+    if (value > max_val)
+    {
+        return max_val;
+    }
+
     return value;
 }
 
@@ -227,7 +220,7 @@ float readAveragedADC(uint8_t pin, uint8_t samples)
 }
 
 // ============================================================================
-// Generic servo configuration helpers
+// Servo configuration helpers
 // ============================================================================
 
 int cfgAllowedMin(const ServoConfig &cfg)
@@ -238,6 +231,16 @@ int cfgAllowedMin(const ServoConfig &cfg)
 int cfgAllowedMax(const ServoConfig &cfg)
 {
     return rounded_int(cfg.allowed_max_deg);
+}
+
+int cfgServoMin(const ServoConfig &cfg)
+{
+    return rounded_int(cfg.servo_min_deg);
+}
+
+int cfgServoMax(const ServoConfig &cfg)
+{
+    return rounded_int(cfg.servo_max_deg);
 }
 
 int cfgRestDeg(const ServoConfig &cfg)
@@ -259,7 +262,7 @@ int cfgMaxDeg(const ServoConfig &cfg)
     return cfgAllowedMax(cfg);
 }
 
-int cfgConstrainAngle(const ServoConfig &cfg, int angleDeg)
+int cfgConstrainAllowedAngle(const ServoConfig &cfg, int angleDeg)
 {
     return safe_constrain_int(
         angleDeg,
@@ -268,23 +271,28 @@ int cfgConstrainAngle(const ServoConfig &cfg, int angleDeg)
     );
 }
 
+int cfgConstrainServoAngle(const ServoConfig &cfg, int angleDeg)
+{
+    return safe_constrain_int(
+        angleDeg,
+        cfgServoMin(cfg),
+        cfgServoMax(cfg)
+    );
+}
+
 int cfgAngleToPwmUs(const ServoConfig &cfg, int angleDeg)
 {
-    int boundedAngle = cfgConstrainAngle(cfg, angleDeg);
-    int physicalAngle = boundedAngle;
+    int logicalAngle = cfgConstrainServoAngle(cfg, angleDeg);
+    int physicalAngle = logicalAngle;
 
     if (cfg.inverted)
     {
         physicalAngle =
-            rounded_int(cfg.servo_max_deg) -
-            (boundedAngle - rounded_int(cfg.servo_min_deg));
+            cfgServoMax(cfg) -
+            (logicalAngle - cfgServoMin(cfg));
     }
 
-    physicalAngle = safe_constrain_int(
-        physicalAngle,
-        rounded_int(cfg.servo_min_deg),
-        rounded_int(cfg.servo_max_deg)
-    );
+    physicalAngle = cfgConstrainServoAngle(cfg, physicalAngle);
 
     float spanDeg = cfg.servo_max_deg - cfg.servo_min_deg;
 
@@ -300,8 +308,15 @@ int cfgAngleToPwmUs(const ServoConfig &cfg, int angleDeg)
         cfg.pwm_min_us +
         ratio * (cfg.pwm_max_us - cfg.pwm_min_us);
 
-    if (pwm < cfg.pwm_min_us) pwm = cfg.pwm_min_us;
-    if (pwm > cfg.pwm_max_us) pwm = cfg.pwm_max_us;
+    if (pwm < cfg.pwm_min_us)
+    {
+        pwm = cfg.pwm_min_us;
+    }
+
+    if (pwm > cfg.pwm_max_us)
+    {
+        pwm = cfg.pwm_max_us;
+    }
 
     return rounded_int(pwm);
 }
@@ -363,11 +378,11 @@ bool bicepHasCurrentCalibration()
            bicepCfg.current_mA_per_count > 0.0f;
 }
 
-float bicepFeedbackAngleFromADC(int adcValue)
+int bicepFeedbackDegRawFromADC(int adcValue)
 {
     if (!bicepHasFeedbackCalibration())
     {
-        return bicepCfg.rest_deg;
+        return cfgRestDeg(bicepCfg);
     }
 
     float ratio =
@@ -378,7 +393,7 @@ float bicepFeedbackAngleFromADC(int adcValue)
         bicepCfg.servo_min_deg +
         ratio * (bicepCfg.servo_max_deg - bicepCfg.servo_min_deg);
 
-    return safe_constrain_float(angle, bicepCfg.servo_min_deg, bicepCfg.servo_max_deg);
+    return rounded_int(angle);
 }
 
 float bicepCurrentMilliAmpsFromADC(int adcValue)
@@ -415,26 +430,9 @@ int bicepMaxDeg()
     return cfgMaxDeg(bicepCfg);
 }
 
-int bicepConstrainAngle(int angleDeg)
+int bicepConstrainAllowedAngle(int angleDeg)
 {
-    return cfgConstrainAngle(bicepCfg, angleDeg);
-}
-
-int bicepReadFeedbackDeg()
-{
-    int measuredDeg;
-
-    if (bicepHasFeedbackADC() && bicepHasFeedbackCalibration())
-    {
-        int fbAdc = rounded_int(readAveragedADC(bicepCfg.feedback_adc_pin, ADC_SAMPLES));
-        measuredDeg = rounded_int(bicepFeedbackAngleFromADC(fbAdc));
-    }
-    else
-    {
-        measuredDeg = bicepRestDeg();
-    }
-
-    return bicepConstrainAngle(measuredDeg);
+    return cfgConstrainAllowedAngle(bicepCfg, angleDeg);
 }
 
 int bicepReadCurrentMilliAmps()
@@ -454,12 +452,38 @@ void updateBicepSensors()
 {
     if (digitalRead(SERVO_GROUP_1_PIN) == HIGH)
     {
-        bicep.feedback_deg = bicepReadFeedbackDeg();
-        bicep.current_mA = bicepReadCurrentMilliAmps();
+        if (bicepHasFeedbackADC())
+        {
+            bicep.feedback_adc =
+                rounded_int(readAveragedADC(bicepCfg.feedback_adc_pin, ADC_SAMPLES));
+
+            bicep.feedback_deg_raw =
+                bicepFeedbackDegRawFromADC(bicep.feedback_adc);
+
+            bicep.feedback_deg_safe =
+                bicepConstrainAllowedAngle(bicep.feedback_deg_raw);
+        }
+        else
+        {
+            bicep.feedback_adc = -1;
+            bicep.feedback_deg_raw = bicepRestDeg();
+            bicep.feedback_deg_safe = bicepRestDeg();
+        }
+
+        if (bicep.attached)
+        {
+            bicep.current_mA = bicepReadCurrentMilliAmps();
+        }
+        else
+        {
+            bicep.current_mA = 0;
+        }
     }
     else
     {
-        bicep.feedback_deg = bicep.current_deg;
+        bicep.feedback_adc = -1;
+        bicep.feedback_deg_raw = bicep.current_deg;
+        bicep.feedback_deg_safe = bicep.current_deg;
         bicep.current_mA = 0;
     }
 }
@@ -482,22 +506,6 @@ void allPowerOff()
 {
     setGroup1Power(false);
     setGroup2Power(false);
-}
-
-bool auxServoBelongsToGroup1(uint8_t servoIndex)
-{
-    return servoIndex == THUMB_R  ||
-           servoIndex == INDEX_R  ||
-           servoIndex == MIDDLE_R ||
-           servoIndex == RING_R   ||
-           servoIndex == PINKY_R  ||
-           servoIndex == ROTATE_R;
-}
-
-bool auxServoBelongsToGroup2(uint8_t servoIndex)
-{
-    return servoIndex == SHOULDER_R ||
-           servoIndex == OMOPLATE_R;
 }
 
 // ============================================================================
@@ -535,7 +543,7 @@ void attachAuxServosAtRestBeforePower()
         if (!aux[i].attached)
         {
             aux[i].servo.writeMicroseconds(pwmUs);
-            aux[i].servo.attach(cfg.pwm_pin, cfg.pwm_min_us, cfg.pwm_max_us);
+            aux[i].servo.attach(cfg.pwm_pin);
             aux[i].attached = true;
         }
 
@@ -607,7 +615,8 @@ void updateAuxServos()
         ServoConfig cfg;
         readServoConfig(auxServoIndex[i], cfg);
 
-        aux[i].target_deg = cfgConstrainAngle(cfg, aux[i].target_deg);
+        aux[i].target_deg =
+            cfgConstrainAllowedAngle(cfg, aux[i].target_deg);
 
         int step = cfgComputeStepDeg(cfg, aux[i].speed_pct);
 
@@ -630,7 +639,8 @@ void updateAuxServos()
             }
         }
 
-        aux[i].current_deg = cfgConstrainAngle(cfg, aux[i].current_deg);
+        aux[i].current_deg =
+            cfgConstrainAllowedAngle(cfg, aux[i].current_deg);
 
         int pwmUs = cfgAngleToPwmUs(cfg, aux[i].current_deg);
         aux[i].servo.writeMicroseconds(pwmUs);
@@ -654,6 +664,11 @@ bool auxServosAtTarget()
 // BICEP_R PWM and motion
 // ============================================================================
 
+void updateBicepPwmCache()
+{
+    bicep.pwm_us = cfgAngleToPwmUs(bicepCfg, bicep.current_deg);
+}
+
 void detachBicepPwm()
 {
     if (bicep.attached)
@@ -664,27 +679,24 @@ void detachBicepPwm()
     bicep.attached = false;
 }
 
-void attachBicepFromMeasuredPosition()
+void attachBicepFromSafeFeedbackForRestMove()
 {
     updateBicepSensors();
 
-    bicep.current_deg = bicepConstrainAngle(bicep.feedback_deg);
+    /*
+      First BICEP_R PWM happens only here, on button press 2.
+
+      At this point we are intentionally starting an actual movement to rest.
+      Therefore the starting command is constrained to the allowed range.
+    */
+    bicep.current_deg = bicep.feedback_deg_safe;
     bicep.target_deg = bicep.current_deg;
 
-    int pwmUs = cfgAngleToPwmUs(bicepCfg, bicep.current_deg);
+    updateBicepPwmCache();
 
-    /*
-      Critical BICEP_R safety rule:
-      PWM is attached only after feedback has been read.
-      The first commanded pulse corresponds to the measured current position.
-    */
-    bicep.servo.writeMicroseconds(pwmUs);
-    bicep.servo.attach(
-        bicepCfg.pwm_pin,
-        bicepCfg.pwm_min_us,
-        bicepCfg.pwm_max_us
-    );
-    bicep.servo.writeMicroseconds(pwmUs);
+    bicep.servo.writeMicroseconds(bicep.pwm_us);
+    bicep.servo.attach(bicepCfg.pwm_pin);
+    bicep.servo.writeMicroseconds(bicep.pwm_us);
 
     bicep.attached = true;
     bicep.fault_active = false;
@@ -778,7 +790,8 @@ void updateBicepMotion()
 
     bicep.last_update = now;
 
-    bicep.target_deg = bicepConstrainAngle(bicep.target_deg);
+    bicep.target_deg =
+        bicepConstrainAllowedAngle(bicep.target_deg);
 
     int step = cfgComputeStepDeg(bicepCfg, bicep.speed_pct);
 
@@ -801,14 +814,20 @@ void updateBicepMotion()
         }
     }
 
-    bicep.current_deg = bicepConstrainAngle(bicep.current_deg);
+    bicep.current_deg =
+        bicepConstrainAllowedAngle(bicep.current_deg);
 
-    int pwmUs = cfgAngleToPwmUs(bicepCfg, bicep.current_deg);
-    bicep.servo.writeMicroseconds(pwmUs);
+    updateBicepPwmCache();
+    bicep.servo.writeMicroseconds(bicep.pwm_us);
 }
 
 bool bicepAtTarget()
 {
+    if (!bicep.attached)
+    {
+        return true;
+    }
+
     return bicep.current_deg == bicep.target_deg;
 }
 
@@ -825,8 +844,14 @@ void shutdownToPowerOff()
 
     bicep.current_deg = bicepRestDeg();
     bicep.target_deg = bicepRestDeg();
-    bicep.feedback_deg = bicep.current_deg;
+
+    bicep.feedback_adc = -1;
+    bicep.feedback_deg_raw = bicep.current_deg;
+    bicep.feedback_deg_safe = bicep.current_deg;
+
     bicep.current_mA = 0;
+    updateBicepPwmCache();
+
     bicep.fault_active = false;
     bicep.overcurrent_start = 0;
 
@@ -886,8 +911,10 @@ const char* modeText()
     {
         case MODE_POWER_OFF:
             return "PWR OFF";
+        case MODE_BICEP_MEASURED:
+            return "BICEP FB";
         case MODE_TO_REST:
-            return "TO REST";
+            return "BICEP REST";
         case MODE_TO_MAX:
             return "TO MAX";
         case MODE_TO_MIN:
@@ -905,9 +932,14 @@ void updateDisplay()
 {
     updateBicepSensors();
 
+    if (bicep.attached)
+    {
+        updateBicepPwmCache();
+    }
+
     char row[OLED_COLS + 1];
 
-    snprintf(row, sizeof(row), "SUBSYS1 SAFE");
+    snprintf(row, sizeof(row), "SUBSYS1 1.24");
     printRow(0, row);
 
     snprintf(row, sizeof(row), "%s", modeText());
@@ -918,19 +950,34 @@ void updateDisplay()
              digitalRead(SERVO_GROUP_2_PIN) ? "ON" : "OFF");
     printRow(2, row);
 
-    snprintf(row, sizeof(row), "FB:%d Set:%d",
-             bicep.feedback_deg,
-             bicep.current_deg);
+    snprintf(row, sizeof(row), "ADC:%d D:%d",
+             bicep.feedback_adc,
+             bicep.feedback_deg_raw);
     printRow(3, row);
 
-    snprintf(row, sizeof(row), "T:%d R:%d",
-             bicep.target_deg,
-             bicepRestDeg());
+    if (bicep.attached)
+    {
+        snprintf(row, sizeof(row), "S:%d Set:%d",
+                 bicep.feedback_deg_safe,
+                 bicep.current_deg);
+    }
+    else
+    {
+        snprintf(row, sizeof(row), "S:%d Set:--",
+                 bicep.feedback_deg_safe);
+    }
     printRow(4, row);
 
-    snprintf(row, sizeof(row), "Lim:%d-%d",
-             bicepMinDeg(),
-             bicepMaxDeg());
+    if (bicep.attached)
+    {
+        snprintf(row, sizeof(row), "T:%d P:%d",
+                 bicep.target_deg,
+                 bicep.pwm_us);
+    }
+    else
+    {
+        snprintf(row, sizeof(row), "T:-- P:--");
+    }
     printRow(5, row);
 
     snprintf(row, sizeof(row), "I:%dmA L:%d",
@@ -949,7 +996,7 @@ void splashPowerSettling()
     oled.clearDisplay();
     resetOledCache();
 
-    printRow(0, "SUBSYS1 SAFE");
+    printRow(0, "SUBSYS1 1.24");
     printRow(2, "Aux PWM rest");
     printRow(3, "D12+D13 ON");
     printRow(4, "Read bicep FB");
@@ -990,46 +1037,53 @@ void handleButtonPress()
 {
     if (mode == MODE_POWER_OFF)
     {
+        /*
+          Pulsación 1:
+
+          - Aux servos get rest PWM while D12/D13 are OFF.
+          - D12/D13 are enabled.
+          - Wait 2 seconds.
+          - Read and display BICEP_R feedback.
+          - BICEP_R remains detached. No PWM is sent to BICEP_R.
+        */
         detachBicepPwm();
         detachAuxServos();
 
-        /*
-          Required safe startup:
-
-          1. D12 and D13 still OFF.
-          2. All non-feedback servos receive rest PWM.
-          3. D12 and D13 ON.
-          4. Wait 2 s.
-          5. Read BICEP_R feedback.
-          6. Attach BICEP_R from measured position.
-          7. Move BICEP_R to rest.
-        */
         attachAuxServosAtRestBeforePower();
 
         setGroup1Power(true);
         setGroup2Power(true);
-
-        mode = MODE_TO_REST;
 
         splashPowerSettling();
         delay(POWER_SETTLE_MS);
 
         updateBicepSensors();
 
-        bicep.current_deg = bicepConstrainAngle(bicep.feedback_deg);
-        bicep.target_deg = bicep.current_deg;
-        bicep.fault_active = false;
-        bicep.overcurrent_start = 0;
-
-        attachBicepFromMeasuredPosition();
-
-        setAuxTargetsRest();
-        setBicepTargetRest();
+        mode = MODE_BICEP_MEASURED;
 
         resetOledCache();
         oled.clearDisplay();
         updateDisplay();
 
+        return;
+    }
+
+    if (mode == MODE_BICEP_MEASURED)
+    {
+        /*
+          Pulsación 2:
+
+          - Read BICEP_R feedback again.
+          - Attach BICEP_R for the first time.
+          - Start from feedback_deg_safe.
+          - Move BICEP_R to rest.
+        */
+        attachBicepFromSafeFeedbackForRestMove();
+        setBicepTargetRest();
+
+        mode = MODE_TO_REST;
+
+        updateDisplay();
         return;
     }
 
@@ -1069,6 +1123,7 @@ void handleButtonPress()
     if (mode == MODE_REST_THEN_OFF)
     {
         shutdownToPowerOff();
+
         updateDisplay();
         return;
     }
@@ -1076,6 +1131,7 @@ void handleButtonPress()
     if (mode == MODE_FAULT)
     {
         shutdownToPowerOff();
+
         updateDisplay();
         return;
     }
@@ -1104,7 +1160,11 @@ void setup()
 
     bicep.current_deg = bicepRestDeg();
     bicep.target_deg = bicepRestDeg();
-    bicep.feedback_deg = bicep.current_deg;
+
+    bicep.feedback_adc = -1;
+    bicep.feedback_deg_raw = bicep.current_deg;
+    bicep.feedback_deg_safe = bicep.current_deg;
+
     bicep.current_mA = 0;
     bicep.speed_pct = bicepCfg.default_speed_pct;
     bicep.accel_pct = bicepCfg.default_accel_pct;
@@ -1112,6 +1172,7 @@ void setup()
     bicep.fault_active = false;
     bicep.last_update = millis();
     bicep.overcurrent_start = 0;
+    bicep.pwm_us = 0;
 
     initAuxServos();
 
