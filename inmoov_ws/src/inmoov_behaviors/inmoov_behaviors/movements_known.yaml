@@ -6,12 +6,12 @@
 # 1) Close all fingers except the thumb and raise the bicep to 90º, then wait 3 s
 - delay: 3.0
   servos:
-    thumb_finger_R: 0       # rest (thumb open)
-    index_finger_R: 85      # minimum (closed)
-    middle_finger_R: 70     # minimum (closed)
-    ring_finger_R: 80       # minimum (closed)
-    pinky_finger_R: 90      # minimum (closed)
-    bicep_R: 90             # indicated angle
+    thumb_finger_R: 180     # rest (thumb open)
+    index_finger_R: 80      # minimum (closed)
+    middle_finger_R: 65     # minimum (closed)
+    ring_finger_R: 70       # minimum (closed)
+    pinky_finger_R: 95      # minimum (closed)
+    bicep_R: 80             # indicated angle
 
 # 2) Open all fingers to rest position (0) and move bicep to rest (0), then wait 3 
 - delay: 2.0
