@@ -1,66 +1,75 @@
 /*
 ===============================================================================
 File:         Xicro_subsys1_ID_1.ino
-Version:      2.0.1
+Version:      2.1.0
 Author:       Alejandro Alonso Puig (https://github.com/aalonsopuig) + GPT
-Date:         2026-07-16
+Date:         2026-07-20
 License:      Apache 2.0
 -------------------------------------------------------------------------------
 Description:
 
-Firmware for InMoov robot, subsystem 1, Arduino Uno + XICRO + ROS 2.
+Firmware for InMoov robot "Paul" - Subsystem 1.
 
-This version integrates:
+This Arduino Uno firmware controls the right arm and related servos of the
+InMoov robot through a ROS 2 interface generated with XICRO. The Arduino receives
+servo target positions from ROS 2 topics, applies mechanical limits defined in
+servo_config_inmoov.h, and moves the servos smoothly using incremental position
+updates.
 
-- XICRO command reception from ROS 2.
-- Safe staged startup to rest position.
-- Servo limits from servo_config_inmoov.h.
-- Smooth interpolated motion.
-- BICEP_R feedback-based startup.
-- BICEP_R current protection.
-- OLED information screen.
-- Button-driven servo information display.
+The firmware controls two external servo power groups through the custom shield:
 
-RAM-saving changes in v2.0.1:
+- Servo group 1, controlled by D12:
+    BICEP_R, THUMB_R, INDEX_R, MIDDLE_R, RING_R, PINKY_R and ROTATE_R.
 
-- Removed OLED row cache:
-    char lastOledRows[8][17]
-  This saves 136 bytes of SRAM.
+- Servo group 2, controlled by D13:
+    SHOULDER_R and OMOPLATE_R.
 
-- OLED rows are now always rewritten directly.
-  This is less elegant, but much safer for Arduino Uno SRAM.
+Both power groups are kept disabled immediately after reset and are enabled only
+after a controlled startup sequence. This reduces the risk of uncontrolled servo
+movement during Arduino boot, USB serial reset, XICRO initialization or PWM
+attachment.
 
-- Runtime variables use smaller integer types where practical.
+The BICEP_R servo has additional protection and sensing:
 
-Important XICRO behavior:
+- Position feedback through an analog potentiometer.
+- Current sensing through an analog current sensor.
+- Feedback-based startup, so the firmware attaches BICEP_R at its measured
+  mechanical position before commanding it smoothly to its rest position.
+- Overcurrent protection, which detaches BICEP_R and enters FAULT mode if the
+  measured current remains above the configured limit for the configured time.
 
-- Before a servo receives its first non-zero ROS/XICRO command, it remains at rest.
-- First non-zero command activates ROS/XICRO control for that servo.
-- After activation, command 0 means "go to rest".
-- Every command is constrained to allowed_min_deg / allowed_max_deg.
+The OLED display is used as a low-memory diagnostic interface. Because the
+Arduino Uno has limited SRAM, the display is not refreshed periodically. It is
+updated only in these cases:
 
-Startup sequence:
+- During boot.
+- When startup has completed.
+- When the diagnostic button is pressed.
+- When a BICEP_R current fault is detected.
 
-1. D12/D13 OFF.
-2. Initial 2 s stabilization.
-3. D12 ON with no PWM active.
-4. Wait 2 s.
-5. Read BICEP_R feedback.
-6. Convert ADC to degrees.
-7. Limit measured BICEP_R angle to allowed range.
-8. D12 OFF.
-9. Attach BICEP_R with PWM corresponding to measured safe position.
-10. Attach remaining group 1 servos at rest.
-11. D12 ON.
-12. Command BICEP_R to rest.
-13. Attach group 2 servos at rest.
-14. D13 ON.
-15. Enter normal XICRO-controlled mode.
+The button on D7 cycles through two diagnostic screens:
+
+- Screen 1/2:
+    Last commanded target positions for all servos except BICEP_R.
+
+- Screen 2/2:
+    BICEP_R commanded target position, measured feedback position and current.
+
+Angle values on the OLED are shown as plain integer degrees without any degree
+symbol. This avoids font compatibility problems and keeps the fixed-width text
+layout aligned on small character displays.
+
+The values shown as commanded positions are internal target values after applying
+the configured safety limits. They are not physical position measurements, except
+for the BICEP_R feedback value, which is derived from its potentiometer.
+
+The firmware does not use Serial.print() because the hardware serial port is
+reserved for XICRO communication with the ROS 2 host.
 
 ===============================================================================
 */
 
-#include "Xicro_subsys1_ID_1.h"      // XICRO-generated interface for this Arduino node.
+#include "Xicro_subsys1_ID_1.h"
 
 #include <Arduino.h>
 #include <Wire.h>
@@ -68,50 +77,51 @@ Startup sequence:
 #include <Servo.h>
 #include <U8x8lib.h>
 
-#include "servo_config_inmoov.h"     // ServoConfig table stored in PROGMEM.
+#include "servo_config_inmoov.h"
 
 // ============================================================================
 // Firmware version
 // ============================================================================
 
-#define FW_VERSION "2.0.1"
+#define FW_VERSION "2.1.0"
 
 // ============================================================================
 // Shield pins
 // ============================================================================
 
-#define SERVO_GROUP_1_PIN  12        // Power control for group 1: fingers, bicep, rotate.
-#define SERVO_GROUP_2_PIN  13        // Power control for group 2: shoulder, omoplate.
-#define NEXT_BUTTON_PIN     7        // Button to cycle OLED information screens.
+#define SERVO_GROUP_1_PIN  12        // Servo power group 1 control. LOW = off, HIGH = on.
+#define SERVO_GROUP_2_PIN  13        // Servo power group 2 control. LOW = off, HIGH = on.
+#define NEXT_BUTTON_PIN     7        // Diagnostic button. Connected to GND. Uses INPUT_PULLUP.
 
 // ============================================================================
-// XICRO
+// XICRO serial configuration
 // ============================================================================
 
-#define XICRO_BAUDRATE 57600         // Same baudrate as the previous XICRO firmware.
+#define XICRO_BAUDRATE 57620         // Must match the ROS-side XICRO node baudrate.
 
-Xicro xicro;                         // Global XICRO interface object.
+Xicro xicro;                         // XICRO communication object generated from YAML.
 
 // ============================================================================
-// OLED
+// OLED display
 // ============================================================================
 
+/*
+  SSD1315 OLED modules are usually SSD1306-compatible at command level.
+  U8x8 is used instead of a framebuffer-based graphics library to reduce SRAM
+  consumption on Arduino Uno.
+*/
 U8X8_SSD1306_128X64_NONAME_HW_I2C oled(U8X8_PIN_NONE);
 
-#define OLED_COLS 16                 // 16 text columns in U8x8 mode.
-#define OLED_ROWS 8                  // 8 text rows in U8x8 mode.
-
 // ============================================================================
-// Timing
+// Timing parameters
 // ============================================================================
 
-#define ADC_SAMPLES             8    // Number of ADC samples for simple averaging.
-#define SERVO_UPDATE_MS        40    // Servo interpolation period.
-#define DISPLAY_UPDATE_MS    2000    // OLED refresh period when showing servo data.
+#define ADC_SAMPLES             8    // Number of ADC samples used for simple averaging.
+#define SERVO_UPDATE_MS        40    // Servo interpolation update period.
 #define DEBOUNCE_MS            40    // Button debounce time.
-#define INITIAL_STABILIZE_MS 2000    // Initial general stabilization delay.
-#define POWER_SETTLE_MS      2000    // Delay after enabling D12 only for bicep feedback read.
-#define POWER_OFF_PAUSE_MS    200    // Small pause after switching D12 off before attaching PWM.
+#define INITIAL_STABILIZE_MS 2000    // Initial delay after XICRO start, while keeping XICRO alive.
+#define POWER_SETTLE_MS      2000    // Time for group 1 power to settle before reading BICEP_R feedback.
+#define POWER_OFF_PAUSE_MS    200    // Pause after powering off before attaching PWM.
 
 // ============================================================================
 // System mode
@@ -119,9 +129,9 @@ U8X8_SSD1306_128X64_NONAME_HW_I2C oled(U8X8_PIN_NONE);
 
 enum SystemMode
 {
-    MODE_STARTING = 0,               // Startup sequence is being executed.
-    MODE_RUNNING,                    // Normal mode: XICRO commands are processed.
-    MODE_FAULT                       // BICEP_R current fault: bicep PWM detached.
+    MODE_STARTING = 0,               // Startup sequence in progress.
+    MODE_RUNNING,                    // Normal XICRO-controlled operation.
+    MODE_FAULT                       // Fault condition. BICEP_R is detached.
 };
 
 SystemMode mode = MODE_STARTING;
@@ -132,41 +142,55 @@ SystemMode mode = MODE_STARTING;
 
 struct RuntimeServo
 {
-    Servo servo;                     // Arduino Servo object. This consumes SRAM, but is needed.
+    Servo servo;                     // Arduino Servo object.
 
-    int16_t current_deg;             // Current commanded position in degrees.
-    int16_t target_deg;              // Target commanded position in degrees.
-    int16_t pwm_us;                  // Last PWM value sent with writeMicroseconds().
+    int16_t current_deg;             // Internal smoothed commanded position.
+    int16_t target_deg;              // Target angle after safety limiting.
+    int16_t pwm_us;                  // Last PWM pulse width written to servo.
 
     uint8_t speed_pct;               // Speed percentage from configuration.
-    bool attached;                   // True when Servo.attach() has been called.
-    bool first_commanded;            // True after first non-zero ROS command.
-    unsigned long last_update;       // Last interpolation update time.
+    bool attached;                   // True after Servo.attach().
+    bool first_commanded;            // False until first non-zero XICRO command.
 };
 
-RuntimeServo joints[NUM_SERVOS];     // One runtime state per configured servo.
+RuntimeServo joints[NUM_SERVOS];     // Runtime state for all servos in subsystem 1.
 
-// Cached bicep configuration, because BICEP_R is used often.
-ServoConfig bicepCfg;
+unsigned long lastServoUpdate = 0;   // One shared update timer for all servos.
 
-// BICEP_R sensor and safety state.
-int16_t bicep_feedback_adc = -1;
-int16_t bicep_feedback_deg_raw = 0;
-int16_t bicep_feedback_deg_safe = 0;
-int16_t bicep_current_mA = 0;
-bool bicep_fault_active = false;
+// ============================================================================
+// Cached BICEP_R configuration and sensor state
+// ============================================================================
+
+ServoConfig bicepCfg;                // Cached configuration for BICEP_R.
+
+int16_t bicep_feedback_adc = -1;     // Raw averaged ADC value from BICEP_R feedback.
+int16_t bicep_feedback_deg_raw = 0;  // Feedback-derived position before allowed-range limiting.
+int16_t bicep_feedback_deg_safe = 0; // Feedback-derived position constrained to allowed range.
+int16_t bicep_current_mA = 0;        // Current estimate in mA.
+
+int16_t bicep_fault_current_mA = 0;  // Latched current at the moment of fault.
+int16_t bicep_fault_feedback_deg = 0;// Latched feedback position at the moment of fault.
+
+bool bicep_fault_active = false;     // True after BICEP_R overcurrent fault.
+bool faultScreenShown = false;       // Prevents repeated OLED redraws after fault.
 unsigned long bicep_overcurrent_start = 0;
 
 // ============================================================================
-// Button and display state
+// Button and OLED diagnostic state
 // ============================================================================
 
-bool lastButtonReading = HIGH;
-bool stableButtonState = HIGH;
-unsigned long lastDebounceTime = 0;
-unsigned long lastDisplayUpdate = 0;
+bool lastButtonReading = HIGH;       // Last raw button reading.
+bool stableButtonState = HIGH;       // Debounced button state.
+unsigned long lastDebounceTime = 0;  // Last time the raw button reading changed.
 
-int8_t selectedDisplayServo = -1;    // -1 means intro screen. 0..8 means servo index screen.
+/*
+  diagnosticScreen indicates which diagnostic screen will be shown on the next
+  button press.
+
+  0 -> next press shows screen 1/2.
+  1 -> next press shows screen 2/2.
+*/
+uint8_t diagnosticScreen = 0;
 
 // ============================================================================
 // Generic helpers
@@ -174,6 +198,11 @@ int8_t selectedDisplayServo = -1;    // -1 means intro screen. 0..8 means servo 
 
 int16_t rounded_int(float value)
 {
+    /*
+      Small helper for explicit float-to-int rounding.
+
+      Using a helper keeps the conversions consistent throughout the firmware.
+    */
     if (value >= 0.0f)
     {
         return (int16_t)(value + 0.5f);
@@ -186,6 +215,11 @@ int16_t rounded_int(float value)
 
 int16_t safe_constrain_int(int16_t value, int16_t min_val, int16_t max_val)
 {
+    /*
+      Integer constrain helper.
+
+      This avoids relying on macro expansion and keeps the code explicit.
+    */
     if (value < min_val)
     {
         return min_val;
@@ -201,6 +235,13 @@ int16_t safe_constrain_int(int16_t value, int16_t min_val, int16_t max_val)
 
 float readAveragedADC(uint8_t pin, uint8_t samples)
 {
+    /*
+      Reads an analog input several times and returns the average value.
+
+      The function uses a long accumulator because up to 1023 * samples is added.
+      With the current ADC_SAMPLES value this is far below the long range, but
+      the type avoids accidental overflow if samples is increased later.
+    */
     long sum = 0;
 
     for (uint8_t i = 0; i < samples; i++)
@@ -213,133 +254,375 @@ float readAveragedADC(uint8_t pin, uint8_t samples)
 
 void readServoConfig(uint8_t index, ServoConfig &cfg)
 {
-    // servoConfigs[] is stored in PROGMEM in servo_config_inmoov.h.
-    // We copy one ServoConfig at a time to SRAM only when needed.
+    /*
+      servoConfigs[] is stored in PROGMEM in servo_config_inmoov.h.
+
+      Copying only one ServoConfig at a time avoids keeping the full
+      configuration table in SRAM. This is important on Arduino Uno.
+    */
     memcpy_P(&cfg, &servoConfigs[index], sizeof(ServoConfig));
 }
 
 void readBicepConfig()
 {
+    /*
+      BICEP_R configuration is used frequently for feedback and current safety.
+      Keeping only this single configuration cached is a reasonable SRAM tradeoff.
+    */
     readServoConfig(BICEP_R, bicepCfg);
+}
+
+void waitWithXicro(unsigned long duration_ms)
+{
+    /*
+      Wait while keeping XICRO alive.
+
+      The Arduino Uno normally resets when the host opens the serial port.
+      During startup waits, XICRO is still serviced so that the ROS-side bridge
+      does not appear dead while the firmware is completing its safe startup.
+    */
+    unsigned long start = millis();
+
+    while (millis() - start < duration_ms)
+    {
+        xicro.Spin_node();
+    }
 }
 
 // ============================================================================
 // OLED helpers
 // ============================================================================
 
-void printRow(uint8_t row, const char *text)
+void oledPrintAngle3(int16_t value)
 {
     /*
-      RAM-saving OLED writer.
+      Prints an angle using a fixed width of 3 numeric characters.
 
-      Previous version kept a full 8x17 row cache in SRAM to avoid rewriting
-      unchanged rows. That was convenient, but expensive on Arduino Uno.
+      Examples:
+        0   -> "  0"
+        7   -> "  7"
+        45  -> " 45"
+        170 -> "170"
 
-      This version always rewrites the row. It uses only a local 17-byte buffer,
-      which exists on the stack only while this function runs.
+      No degree symbol or suffix is printed. This keeps the OLED layout stable
+      with the selected U8x8 font and avoids unsupported-character problems.
     */
-    char buffer[OLED_COLS + 1];
-
-    uint8_t i = 0;
-
-    while (i < OLED_COLS && text[i] != '\0')
+    if (value < 0)
     {
-        buffer[i] = text[i];
-        i++;
+        oled.print(F("---"));
+        return;
     }
 
-    while (i < OLED_COLS)
+    if (value < 10)
     {
-        buffer[i] = ' ';
-        i++;
+        oled.print(F("  "));
+    }
+    else if (value < 100)
+    {
+        oled.print(F(" "));
     }
 
-    buffer[OLED_COLS] = '\0';
-
-    oled.setCursor(0, row);
-    oled.print(buffer);
+    oled.print(value);
 }
 
-void clearScreen()
+void oledPrintStatusLine()
 {
-    oled.clearDisplay();
-}
+    /*
+      Common first line used by diagnostic screens.
+    */
+    oled.setCursor(0, 0);
+    oled.print(F("SUB1 2.1.0 "));
 
-void showIntroScreen()
-{
-    clearScreen();
-
-    printRow(0, "SUBSYS1 2.0.1");
-    printRow(1, "XICRO READY");
-    printRow(3, "Press button");
-    printRow(4, "to view servo");
-    printRow(5, "information");
-
-    if (bicep_fault_active)
+    if (mode == MODE_FAULT || bicep_fault_active)
     {
-        printRow(7, "Status: FAULT");
+        oled.print(F("FLT"));
     }
     else
     {
-        printRow(7, "Status: OK");
+        oled.print(F("OK "));
+    }
+}
+
+void oledShowBoot()
+{
+    /*
+      Boot screen.
+
+      Displayed once during setup, before the safe servo startup sequence.
+    */
+    oled.clearDisplay();
+
+    oled.setCursor(0, 0);
+    oled.print(F("SUBSYS1"));
+
+    oled.setCursor(0, 1);
+    oled.print(F("FW 2.1.0"));
+
+    oled.setCursor(0, 2);
+    oled.print(F("XICRO ROS2"));
+
+    oled.setCursor(0, 3);
+    oled.print(F("OLED DIAG"));
+
+    oled.setCursor(0, 5);
+    oled.print(F("Starting..."));
+}
+
+void oledShowReady()
+{
+    /*
+      Ready screen.
+
+      Displayed once after safe startup. The OLED is not refreshed again unless
+      the button is pressed or a fault occurs.
+    */
+    oled.clearDisplay();
+
+    oled.setCursor(0, 0);
+    oled.print(F("SUB1 2.1.0 OK"));
+
+    oled.setCursor(0, 1);
+    oled.print(F("XICRO READY"));
+
+    oled.setCursor(0, 2);
+    oled.print(F("SERVOS READY"));
+
+    oled.setCursor(0, 4);
+    oled.print(F("BTN: DIAG"));
+
+    oled.setCursor(0, 6);
+    oled.print(F("NO AUTO REFRESH"));
+}
+
+void oledShowCommandScreen()
+{
+    /*
+      Diagnostic screen 1/2.
+
+      Shows the last commanded target angles for all servos except BICEP_R.
+      These are target_deg values after safety limiting.
+
+      The screen is useful to confirm that XICRO/ROS 2 commands are reaching the
+      Arduino and being assigned to the expected servo channels.
+    */
+    oled.clearDisplay();
+
+    oledPrintStatusLine();
+
+    oled.setCursor(0, 1);
+    oled.print(F("CMD 1/2"));
+
+    oled.setCursor(0, 2);
+    oled.print(F("TH:"));
+    oledPrintAngle3(joints[THUMB_R].target_deg);
+    oled.print(F(" IN:"));
+    oledPrintAngle3(joints[INDEX_R].target_deg);
+
+    oled.setCursor(0, 3);
+    oled.print(F("MI:"));
+    oledPrintAngle3(joints[MIDDLE_R].target_deg);
+    oled.print(F(" RI:"));
+    oledPrintAngle3(joints[RING_R].target_deg);
+
+    oled.setCursor(0, 4);
+    oled.print(F("PI:"));
+    oledPrintAngle3(joints[PINKY_R].target_deg);
+    oled.print(F(" RO:"));
+    oledPrintAngle3(joints[ROTATE_R].target_deg);
+
+    oled.setCursor(0, 5);
+    oled.print(F("SH:"));
+    oledPrintAngle3(joints[SHOULDER_R].target_deg);
+    oled.print(F(" OM:"));
+    oledPrintAngle3(joints[OMOPLATE_R].target_deg);
+
+    oled.setCursor(0, 7);
+    oled.print(F("BTN: NEXT"));
+}
+
+void oledShowBicepScreen()
+{
+    /*
+      Diagnostic screen 2/2.
+
+      Shows the most useful BICEP_R runtime data:
+
+      CMD:
+        Target angle currently commanded by ROS 2/XICRO after safety limiting.
+
+      FB:
+        Physical position estimate derived from the BICEP_R feedback
+        potentiometer.
+
+      I:
+        Estimated BICEP_R current in mA.
+
+      No periodic refresh is performed. Values are sampled and displayed only
+      when the button is pressed.
+    */
+    updateBicepSensors();
+
+    oled.clearDisplay();
+
+    oledPrintStatusLine();
+
+    oled.setCursor(0, 1);
+    oled.print(F("BICEP 2/2"));
+
+    oled.setCursor(0, 2);
+    oled.print(F("CMD:"));
+    oledPrintAngle3(joints[BICEP_R].target_deg);
+
+    oled.setCursor(0, 3);
+    oled.print(F("FB: "));
+    oledPrintAngle3(bicep_feedback_deg_safe);
+
+    oled.setCursor(0, 4);
+    oled.print(F("I:"));
+    oled.print(bicep_current_mA);
+    oled.print(F("mA"));
+
+    oled.setCursor(0, 6);
+
+    if (bicep_fault_active)
+    {
+        oled.print(F("BICEP FAULT"));
+    }
+    else
+    {
+        oled.print(F("BICEP OK"));
+    }
+
+    oled.setCursor(0, 7);
+    oled.print(F("BTN: NEXT"));
+}
+
+void oledShowFault()
+{
+    /*
+      Automatic fault screen.
+
+      Important:
+      This function intentionally does not call updateBicepSensors().
+
+      At the moment of overcurrent detection, the current and feedback are
+      latched before detaching BICEP_R. If sensors were read again after
+      detaching, current could be overwritten with zero and the screen would
+      lose the most relevant diagnostic value.
+    */
+    oled.clearDisplay();
+
+    oled.setCursor(0, 0);
+    oled.print(F("SUB1 2.1.0"));
+
+    oled.setCursor(0, 1);
+    oled.print(F("FAULT"));
+
+    oled.setCursor(0, 2);
+    oled.print(F("BICEP CURRENT"));
+
+    oled.setCursor(0, 3);
+    oled.print(F("I:"));
+    oled.print(bicep_fault_current_mA);
+    oled.print(F("mA"));
+
+    oled.setCursor(0, 4);
+    oled.print(F("FB:"));
+    oledPrintAngle3(bicep_fault_feedback_deg);
+
+    oled.setCursor(0, 5);
+    oled.print(F("PWM DETACHED"));
+
+    oled.setCursor(0, 7);
+    oled.print(F("RESET REQUIRED"));
+}
+
+void oledShowDiagnosticScreen()
+{
+    /*
+      Displays the diagnostic screen selected by diagnosticScreen.
+    */
+    if (diagnosticScreen == 0)
+    {
+        oledShowCommandScreen();
+    }
+    else
+    {
+        oledShowBicepScreen();
     }
 }
 
 // ============================================================================
-// Servo names and groups
+// Button handling
 // ============================================================================
 
-const char* servoName(uint8_t servoIndex)
+bool nextButtonPressedEvent()
 {
-    switch (servoIndex)
+    /*
+      Debounced falling-edge detector for the diagnostic button.
+
+      The button is wired to GND and uses INPUT_PULLUP:
+        HIGH = not pressed
+        LOW  = pressed
+    */
+    bool reading = digitalRead(NEXT_BUTTON_PIN);
+
+    if (reading != lastButtonReading)
     {
-        case THUMB_R:
-            return "THUMB_R";
-        case INDEX_R:
-            return "INDEX_R";
-        case MIDDLE_R:
-            return "MIDDLE_R";
-        case RING_R:
-            return "RING_R";
-        case PINKY_R:
-            return "PINKY_R";
-        case BICEP_R:
-            return "BICEP_R";
-        case ROTATE_R:
-            return "ROTATE_R";
-        case SHOULDER_R:
-            return "SHOULDER_R";
-        case OMOPLATE_R:
-            return "OMOPLATE_R";
-        default:
-            return "UNKNOWN";
+        lastDebounceTime = millis();
+        lastButtonReading = reading;
+    }
+
+    if ((millis() - lastDebounceTime) > DEBOUNCE_MS)
+    {
+        if (reading != stableButtonState)
+        {
+            stableButtonState = reading;
+
+            if (stableButtonState == LOW)
+            {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+void handleButtonPress()
+{
+    /*
+      First button press shows diagnostic screen 1/2.
+      Second button press shows diagnostic screen 2/2.
+      Subsequent presses alternate between both screens.
+
+      The screen is drawn first, then the selector is advanced. This makes the
+      first press after the READY screen display CMD 1/2.
+    */
+    oledShowDiagnosticScreen();
+
+    if (diagnosticScreen == 0)
+    {
+        diagnosticScreen = 1;
+    }
+    else
+    {
+        diagnosticScreen = 0;
     }
 }
 
-uint8_t servoGroup(uint8_t servoIndex)
-{
-    if (servoIndex == THUMB_R  ||
-        servoIndex == INDEX_R  ||
-        servoIndex == MIDDLE_R ||
-        servoIndex == RING_R   ||
-        servoIndex == PINKY_R  ||
-        servoIndex == BICEP_R  ||
-        servoIndex == ROTATE_R)
-    {
-        return 1;
-    }
-
-    if (servoIndex == SHOULDER_R ||
-        servoIndex == OMOPLATE_R)
-    {
-        return 2;
-    }
-
-    return 0;
-}
+// ============================================================================
+// Servo group helpers
+// ============================================================================
 
 bool servoIsGroup1NonBicep(uint8_t servoIndex)
 {
+    /*
+      Group 1 servos except BICEP_R.
+
+      BICEP_R is excluded because it has a special feedback-based startup
+      sequence.
+    */
     return servoIndex == THUMB_R  ||
            servoIndex == INDEX_R  ||
            servoIndex == MIDDLE_R ||
@@ -350,6 +633,9 @@ bool servoIsGroup1NonBicep(uint8_t servoIndex)
 
 bool servoIsGroup2(uint8_t servoIndex)
 {
+    /*
+      Group 2 servos controlled by D13.
+    */
     return servoIndex == SHOULDER_R ||
            servoIndex == OMOPLATE_R;
 }
@@ -380,7 +666,11 @@ int16_t cfgServoMax(const ServoConfig &cfg)
 
 int16_t cfgRestDeg(const ServoConfig &cfg)
 {
-    // Rest angle must always be inside the mechanical safe range.
+    /*
+      Returns the configured rest angle constrained to the mechanically allowed
+      range. This prevents an invalid rest_deg from driving a servo outside its
+      safe movement interval.
+    */
     return safe_constrain_int(
         rounded_int(cfg.rest_deg),
         cfgAllowedMin(cfg),
@@ -390,7 +680,9 @@ int16_t cfgRestDeg(const ServoConfig &cfg)
 
 int16_t cfgConstrainAllowedAngle(const ServoConfig &cfg, int16_t angleDeg)
 {
-    // Mechanical command limit.
+    /*
+      Constrains a commanded target angle to the mechanically allowed range.
+    */
     return safe_constrain_int(
         angleDeg,
         cfgAllowedMin(cfg),
@@ -400,7 +692,12 @@ int16_t cfgConstrainAllowedAngle(const ServoConfig &cfg, int16_t angleDeg)
 
 int16_t cfgConstrainServoAngle(const ServoConfig &cfg, int16_t angleDeg)
 {
-    // Servo calibration range, not necessarily the same as the allowed range.
+    /*
+      Constrains an angle to the full calibrated servo range.
+
+      This is used only during angle-to-PWM conversion. It is different from the
+      mechanically allowed range.
+    */
     return safe_constrain_int(
         angleDeg,
         cfgServoMin(cfg),
@@ -411,12 +708,19 @@ int16_t cfgConstrainServoAngle(const ServoConfig &cfg, int16_t angleDeg)
 int16_t cfgAngleToPwmUs(const ServoConfig &cfg, int16_t angleDeg)
 {
     /*
-      Converts logical angle to PWM.
+      Converts a logical servo angle to PWM pulse width.
 
       Important:
-      - This function does NOT apply allowed_min_deg / allowed_max_deg.
-      - It only uses servo_min_deg / servo_max_deg and pwm_min_us / pwm_max_us.
-      - Mechanical limits must be applied before setting current_deg or target_deg.
+      This function does not apply allowed_min_deg / allowed_max_deg.
+      Mechanical limits are applied before assigning target_deg and current_deg.
+
+      This function only maps:
+        servo_min_deg..servo_max_deg
+      to:
+        pwm_min_us..pwm_max_us
+
+      If cfg.inverted is true, the logical angle is mirrored within the calibrated
+      servo range before PWM conversion.
     */
     int16_t logicalAngle = cfgConstrainServoAngle(cfg, angleDeg);
     int16_t physicalAngle = logicalAngle;
@@ -460,10 +764,10 @@ int16_t cfgAngleToPwmUs(const ServoConfig &cfg, int16_t angleDeg)
 int16_t cfgComputeStepDeg(const ServoConfig &cfg, uint8_t speedPct)
 {
     /*
-      Converts max speed + percentage + update period into integer degree step.
+      Computes the angular increment applied every SERVO_UPDATE_MS.
 
-      A minimum step of 1 degree is enforced so that movement never stalls due
-      to rounding on slow servos.
+      The maximum configured speed is scaled by speedPct. A minimum step of
+      1 degree/update avoids movement stalls caused by rounding to zero.
     */
     float speed_pct = speedPct;
 
@@ -522,6 +826,10 @@ bool bicepHasCurrentCalibration()
 
 int16_t bicepFeedbackDegRawFromADC(int16_t adcValue)
 {
+    /*
+      Converts BICEP_R feedback ADC reading into an estimated servo angle using
+      the calibration stored in servo_config_inmoov.h.
+    */
     if (!bicepHasFeedbackCalibration())
     {
         return cfgRestDeg(bicepCfg);
@@ -540,6 +848,12 @@ int16_t bicepFeedbackDegRawFromADC(int16_t adcValue)
 
 float bicepCurrentMilliAmpsFromADC(int16_t adcValue)
 {
+    /*
+      Converts BICEP_R current-sensor ADC reading to current in mA.
+
+      Negative values are clamped to zero because they are not meaningful for
+      this protection logic.
+    */
     if (!bicepHasCurrentCalibration())
     {
         return 0.0f;
@@ -559,6 +873,11 @@ float bicepCurrentMilliAmpsFromADC(int16_t adcValue)
 
 int16_t bicepReadCurrentMilliAmps()
 {
+    /*
+      Reads and converts the BICEP_R current sensor.
+
+      Returns zero if current sensing is not configured.
+    */
     if (!bicepHasCurrentADC() || !bicepHasCurrentCalibration())
     {
         return 0;
@@ -573,8 +892,13 @@ int16_t bicepReadCurrentMilliAmps()
 void updateBicepSensors()
 {
     /*
-      Feedback is meaningful only when group 1 is powered.
-      Current is checked only when BICEP_R is attached and driven.
+      Updates BICEP_R feedback and current state.
+
+      Feedback is read when group 1 power is active, because the potentiometer
+      circuit is expected to be powered with that group.
+
+      Current is only meaningful while BICEP_R is attached and driven. If the
+      servo is detached, current is reported as zero during normal operation.
     */
     if (digitalRead(SERVO_GROUP_1_PIN) == HIGH)
     {
@@ -630,16 +954,25 @@ void setGroup2Power(bool enabled)
 
 void allPowerOff()
 {
+    /*
+      Disables both external servo power groups.
+    */
     setGroup1Power(false);
     setGroup2Power(false);
 }
 
 // ============================================================================
-// Runtime servo initialization and attach/detach
+// Servo attach/detach and initialization
 // ============================================================================
 
 void initRuntimeServos()
 {
+    /*
+      Initializes runtime state from the PROGMEM servo configuration table.
+
+      Servos are not attached here. PWM attachment is performed later by the
+      safe startup sequence.
+    */
     for (uint8_t i = 0; i < NUM_SERVOS; i++)
     {
         ServoConfig cfg;
@@ -648,25 +981,22 @@ void initRuntimeServos()
         joints[i].current_deg = cfgRestDeg(cfg);
         joints[i].target_deg = cfgRestDeg(cfg);
         joints[i].pwm_us = cfgAngleToPwmUs(cfg, joints[i].current_deg);
+
         joints[i].speed_pct = cfg.default_speed_pct;
         joints[i].attached = false;
         joints[i].first_commanded = false;
-        joints[i].last_update = millis();
     }
+
+    lastServoUpdate = millis();
 }
 
 void attachServoAtCurrent(uint8_t servoIndex)
 {
     /*
-      Attach servo using the already stored current_deg.
+      Attaches a servo at its current runtime angle.
 
-      Pattern used deliberately:
-        writeMicroseconds()
-        attach()
-        writeMicroseconds()
-
-      The first write sets the Servo library internal value before attaching.
-      The second write reinforces the intended PWM immediately after attach.
+      The PWM pulse is written before and after attach to reduce the chance of
+      an unintended jump during attachment.
     */
     ServoConfig cfg;
     readServoConfig(servoIndex, cfg);
@@ -682,16 +1012,13 @@ void attachServoAtCurrent(uint8_t servoIndex)
     }
 
     joints[servoIndex].servo.writeMicroseconds(joints[servoIndex].pwm_us);
-    joints[servoIndex].last_update = millis();
 }
 
 void attachServoAtRest(uint8_t servoIndex)
 {
     /*
-      Attach a non-feedback servo directly at its rest position.
-
-      This is used while its power group is still OFF, so that the PWM line is
-      already valid before the servo receives power.
+      Forces runtime state to the configured rest position, then attaches the
+      servo at that position.
     */
     ServoConfig cfg;
     readServoConfig(servoIndex, cfg);
@@ -708,11 +1035,13 @@ void attachServoAtRest(uint8_t servoIndex)
     }
 
     joints[servoIndex].servo.writeMicroseconds(joints[servoIndex].pwm_us);
-    joints[servoIndex].last_update = millis();
 }
 
 void detachServo(uint8_t servoIndex)
 {
+    /*
+      Detaches one servo if it was previously attached.
+    */
     if (joints[servoIndex].attached)
     {
         joints[servoIndex].servo.detach();
@@ -722,6 +1051,9 @@ void detachServo(uint8_t servoIndex)
 
 void detachAllServos()
 {
+    /*
+      Detaches all servos. Used at startup before the staged power-up sequence.
+    */
     for (uint8_t i = 0; i < NUM_SERVOS; i++)
     {
         detachServo(i);
@@ -734,6 +1066,14 @@ void detachAllServos()
 
 void performStagedStartupToRest()
 {
+    /*
+      Safe startup sequence.
+
+      The most delicate servo is BICEP_R because it can carry larger mechanical
+      loads. For that reason, its actual feedback position is read before PWM is
+      attached. The servo is then attached at the measured position and only
+      afterwards commanded smoothly to rest.
+    */
     mode = MODE_STARTING;
 
     detachAllServos();
@@ -741,35 +1081,25 @@ void performStagedStartupToRest()
 
     /*
       Phase 1:
-      Enable D12 with no PWM active.
-      Purpose: power BICEP_R feedback electronics and read its actual position
-      in an electrically quiet situation, with no PWM running in the cable flat.
+      Enable group 1 with no PWM active. This powers the BICEP_R feedback sensor
+      and allows reading its current mechanical position without driving the
+      servo.
     */
     setGroup1Power(true);
-
-    clearScreen();
-    printRow(0, "SUBSYS1 2.0.1");
-    printRow(1, "AUTO START");
-    printRow(2, "D12 ON");
-    printRow(3, "NO PWM");
-    printRow(4, "READ BICEP FB");
-    printRow(6, "WAIT 2 sec");
-
-    delay(POWER_SETTLE_MS);
+    waitWithXicro(POWER_SETTLE_MS);
 
     updateBicepSensors();
 
     /*
       Phase 2:
-      Turn group 1 power OFF again before attaching PWM lines.
+      Turn group 1 off before attaching PWM signals.
     */
     setGroup1Power(false);
-    delay(POWER_OFF_PAUSE_MS);
+    waitWithXicro(POWER_OFF_PAUSE_MS);
 
     /*
       Phase 3:
-      Prepare BICEP_R PWM from feedback-derived safe position.
-      D12 is OFF, so the servo should not move while the PWM line is prepared.
+      Attach BICEP_R at the feedback-derived safe angle.
     */
     joints[BICEP_R].current_deg = bicep_feedback_deg_safe;
     joints[BICEP_R].target_deg = joints[BICEP_R].current_deg;
@@ -777,7 +1107,8 @@ void performStagedStartupToRest()
 
     /*
       Phase 4:
-      Prepare group 1 remaining servos at rest while D12 is still OFF.
+      Attach the remaining group 1 servos at their rest positions while group 1
+      power is still off.
     */
     for (uint8_t i = 0; i < NUM_SERVOS; i++)
     {
@@ -789,8 +1120,8 @@ void performStagedStartupToRest()
 
     /*
       Phase 5:
-      Enable group 1.
-      BICEP_R starts from measured safe position; then it is commanded to rest.
+      Enable group 1. BICEP_R is now driven from its measured position toward
+      its configured rest angle by the normal smooth-motion logic.
     */
     setGroup1Power(true);
 
@@ -800,7 +1131,7 @@ void performStagedStartupToRest()
 
     /*
       Phase 6:
-      Prepare group 2 servos at rest while D13 is still OFF.
+      Attach group 2 servos at rest while group 2 power is off.
     */
     for (uint8_t i = 0; i < NUM_SERVOS; i++)
     {
@@ -812,10 +1143,11 @@ void performStagedStartupToRest()
 
     /*
       Phase 7:
-      Enable group 2.
+      Enable group 2 and enter normal operation.
     */
     setGroup2Power(true);
 
+    lastServoUpdate = millis();
     mode = MODE_RUNNING;
 }
 
@@ -826,8 +1158,10 @@ void performStagedStartupToRest()
 int16_t getIncomingXicroValue(uint8_t servoIndex)
 {
     /*
-      The field names come from the XICRO-generated header.
-      They match the previous subsystem 1 firmware.
+      Maps each runtime servo index to the corresponding XICRO subscription.
+
+      The field names are generated by XICRO and must match the generated
+      Xicro_subsys1_ID_1.h header.
     */
     switch (servoIndex)
     {
@@ -865,6 +1199,15 @@ int16_t getIncomingXicroValue(uint8_t servoIndex)
 
 void updateTargetsFromXicro()
 {
+    /*
+      Reads XICRO subscription values and updates each servo target.
+
+      Activation policy inherited from the original tested subsystem firmware:
+
+      - Before the first non-zero command, each servo remains at rest.
+      - The first non-zero command activates ROS/XICRO control for that servo.
+      - After activation, command 0 means "return to rest".
+    */
     if (mode != MODE_RUNNING)
     {
         return;
@@ -877,13 +1220,6 @@ void updateTargetsFromXicro()
 
         int16_t incoming = getIncomingXicroValue(i);
 
-        /*
-          Activation policy inherited from previous firmware:
-
-          - Before activation, a servo ignores zeros and remains at rest.
-          - First non-zero command activates that servo.
-          - After activation, zero means "go to rest".
-        */
         if (!joints[i].first_commanded && incoming != 0)
         {
             joints[i].first_commanded = true;
@@ -914,6 +1250,12 @@ void updateTargetsFromXicro()
 
 void checkBicepFault()
 {
+    /*
+      Checks BICEP_R overcurrent protection.
+
+      If current remains above the configured limit for the configured time, the
+      firmware latches diagnostic values, detaches BICEP_R and enters FAULT mode.
+    */
     if (!joints[BICEP_R].attached)
     {
         bicep_overcurrent_start = 0;
@@ -949,15 +1291,24 @@ void checkBicepFault()
         if (millis() - bicep_overcurrent_start >= bicepCfg.overcurrent_time_ms)
         {
             /*
-              Fault strategy:
-              - Detach only BICEP_R PWM.
-              - Leave system in FAULT mode.
-              - Other servos keep their last state.
-              - This avoids forcing more motion during a possible mechanical issue.
+              Latch diagnostic data before detaching the servo.
+
+              Once the servo is detached, normal sensor update logic would set
+              current to zero. The fault screen must show the actual current
+              that caused the protection to trigger.
             */
+            bicep_fault_current_mA = bicep_current_mA;
+            bicep_fault_feedback_deg = bicep_feedback_deg_safe;
+
             bicep_fault_active = true;
             detachServo(BICEP_R);
             mode = MODE_FAULT;
+
+            if (!faultScreenShown)
+            {
+                oledShowFault();
+                faultScreenShown = true;
+            }
         }
     }
     else
@@ -968,6 +1319,12 @@ void checkBicepFault()
 
 void updateServoMotion(uint8_t servoIndex)
 {
+    /*
+      Performs one smooth-motion update for the selected servo.
+
+      The servo moves from current_deg toward target_deg by a bounded step.
+      The resulting angle is converted to PWM and written using writeMicroseconds.
+    */
     if (!joints[servoIndex].attached)
     {
         return;
@@ -986,19 +1343,6 @@ void updateServoMotion(uint8_t servoIndex)
     ServoConfig cfg;
     readServoConfig(servoIndex, cfg);
 
-    unsigned long now = millis();
-
-    if (now - joints[servoIndex].last_update < SERVO_UPDATE_MS)
-    {
-        return;
-    }
-
-    joints[servoIndex].last_update = now;
-
-    /*
-      Reapply safety constraint on target at every update.
-      This protects against any invalid ROS/XICRO command.
-    */
     joints[servoIndex].target_deg =
         cfgConstrainAllowedAngle(cfg, joints[servoIndex].target_deg);
 
@@ -1023,9 +1367,6 @@ void updateServoMotion(uint8_t servoIndex)
         }
     }
 
-    /*
-      Reapply safety constraint to current_deg before generating PWM.
-    */
     joints[servoIndex].current_deg =
         cfgConstrainAllowedAngle(cfg, joints[servoIndex].current_deg);
 
@@ -1037,123 +1378,25 @@ void updateServoMotion(uint8_t servoIndex)
 
 void updateAllServoMotion()
 {
-    for (uint8_t i = 0; i < NUM_SERVOS; i++)
-    {
-        updateServoMotion(i);
-    }
-}
+    /*
+      Updates all servos at a fixed cadence.
 
-// ============================================================================
-// Display
-// ============================================================================
+      One shared timer is used for all servos to save SRAM compared with storing
+      one timestamp per servo.
+    */
+    unsigned long now = millis();
 
-void updateServoInfoScreen()
-{
-    if (selectedDisplayServo < 0)
+    if (now - lastServoUpdate < SERVO_UPDATE_MS)
     {
         return;
     }
 
-    uint8_t servoIndex = (uint8_t)selectedDisplayServo;
+    lastServoUpdate = now;
 
-    ServoConfig cfg;
-    readServoConfig(servoIndex, cfg);
-
-    char row[OLED_COLS + 1];
-
-    clearScreen();
-
-    snprintf(row, sizeof(row), "SUBSYS1 2.0.1");
-    printRow(0, row);
-
-    snprintf(row, sizeof(row), "%d/%d %s",
-             selectedDisplayServo + 1,
-             NUM_SERVOS,
-             servoName(servoIndex));
-    printRow(1, row);
-
-    snprintf(row, sizeof(row), "G:%d Pin:%d",
-             servoGroup(servoIndex),
-             cfg.pwm_pin);
-    printRow(2, row);
-
-    snprintf(row, sizeof(row), "Min:%d Max:%d",
-             cfgAllowedMin(cfg),
-             cfgAllowedMax(cfg));
-    printRow(3, row);
-
-    snprintf(row, sizeof(row), "Rest:%d Sp:%d",
-             cfgRestDeg(cfg),
-             cfg.default_speed_pct);
-    printRow(4, row);
-
-    snprintf(row, sizeof(row), "Set:%d T:%d",
-             joints[servoIndex].current_deg,
-             joints[servoIndex].target_deg);
-    printRow(5, row);
-
-    snprintf(row, sizeof(row), "PWM:%d %s",
-             joints[servoIndex].pwm_us,
-             joints[servoIndex].attached ? "ON" : "OFF");
-    printRow(6, row);
-
-    if (servoIndex == BICEP_R)
+    for (uint8_t i = 0; i < NUM_SERVOS; i++)
     {
-        updateBicepSensors();
-
-        snprintf(row, sizeof(row), "I:%dmA %s",
-                 bicep_current_mA,
-                 bicep_fault_active ? "FAULT" : "OK");
+        updateServoMotion(i);
     }
-    else
-    {
-        snprintf(row, sizeof(row), "%s",
-                 mode == MODE_FAULT ? "SYSTEM FAULT" : "SYSTEM OK");
-    }
-
-    printRow(7, row);
-}
-
-// ============================================================================
-// Button
-// ============================================================================
-
-bool nextButtonPressedEvent()
-{
-    bool reading = digitalRead(NEXT_BUTTON_PIN);
-
-    if (reading != lastButtonReading)
-    {
-        lastDebounceTime = millis();
-        lastButtonReading = reading;
-    }
-
-    if ((millis() - lastDebounceTime) > DEBOUNCE_MS)
-    {
-        if (reading != stableButtonState)
-        {
-            stableButtonState = reading;
-
-            if (stableButtonState == LOW)
-            {
-                return true;
-            }
-        }
-    }
-
-    return false;
-}
-
-void handleButtonPress()
-{
-    selectedDisplayServo++;
-
-    if (selectedDisplayServo >= NUM_SERVOS)
-    {
-        selectedDisplayServo = 0;
-    }
-
-    updateServoInfoScreen();
 }
 
 // ============================================================================
@@ -1163,15 +1406,15 @@ void handleButtonPress()
 void setup()
 {
     /*
-      Power lines must be defined and switched OFF as early as possible.
+      Power control pins are initialized immediately and both servo groups are
+      disabled before anything else.
     */
     pinMode(SERVO_GROUP_1_PIN, OUTPUT);
     pinMode(SERVO_GROUP_2_PIN, OUTPUT);
     allPowerOff();
 
     /*
-      Button input uses internal pull-up.
-      Pressed = LOW.
+      Configure diagnostic button with internal pull-up.
     */
     pinMode(NEXT_BUTTON_PIN, INPUT_PULLUP);
     lastButtonReading = digitalRead(NEXT_BUTTON_PIN);
@@ -1179,57 +1422,49 @@ void setup()
     lastDebounceTime = millis();
 
     /*
-      AREF is externally connected to 3.3 V.
-      This must be configured before analogRead().
+      AREF is externally tied to 3.3 V.
+      This must be selected before any analogRead().
     */
     analogReference(EXTERNAL);
 
     /*
-      XICRO serial link.
+      Start XICRO communication.
+      Serial must not be used for debug prints because it is dedicated to XICRO.
     */
     Serial.begin(XICRO_BAUDRATE);
     xicro.begin(&Serial);
 
     /*
-      Read repeated bicep configuration once.
-      Initialize runtime states from servo_config_inmoov.h.
+      Initialize OLED once.
+      No periodic refresh is performed in loop().
+    */
+    Wire.begin();
+    oled.begin();
+    oled.setPowerSave(0);
+    oled.setFont(u8x8_font_chroma48medium8_r);
+    oledShowBoot();
+
+    /*
+      Initialize servo configuration and runtime state.
     */
     readBicepConfig();
     initRuntimeServos();
 
     /*
-      OLED initialization.
+      Initial stabilization while keeping XICRO alive.
     */
-    Wire.begin();
-
-    oled.begin();
-    oled.setPowerSave(0);
-    oled.setFont(u8x8_font_chroma48medium8_r);
-
-    clearScreen();
-    printRow(0, "SUBSYS1 2.0.1");
-    printRow(1, "XICRO BOOT");
-    printRow(3, "Stabilizing");
-    printRow(4, "system...");
-    printRow(6, "Please wait");
+    waitWithXicro(INITIAL_STABILIZE_MS);
 
     /*
-      General stabilization delay before staged servo startup.
-    */
-    delay(INITIAL_STABILIZE_MS);
-
-    /*
-      Safe autonomous startup to rest.
+      Controlled servo startup.
     */
     performStagedStartupToRest();
 
     /*
-      Initial information screen.
+      Final base screen.
+      After this point, OLED is updated only on button press or fault.
     */
-    selectedDisplayServo = -1;
-    showIntroScreen();
-
-    lastDisplayUpdate = millis();
+    oledShowReady();
 }
 
 // ============================================================================
@@ -1239,42 +1474,26 @@ void setup()
 void loop()
 {
     /*
-      Keep XICRO alive and receive ROS 2 topic values.
+      Service XICRO communication.
     */
     xicro.Spin_node();
 
     /*
-      Convert XICRO values into servo targets.
-      Limits are applied before targets are stored.
+      Update servo targets from ROS 2/XICRO subscription values.
     */
     updateTargetsFromXicro();
 
     /*
-      Smoothly move every attached servo towards its target.
-      BICEP_R current fault is checked inside its update path.
+      Move servos smoothly and check BICEP_R protection.
     */
     updateAllServoMotion();
 
     /*
-      Button only changes the displayed servo information.
-      It never commands motion.
+      Update OLED only if the diagnostic button generates a debounced press
+      event.
     */
     if (nextButtonPressedEvent())
     {
         handleButtonPress();
-    }
-
-    /*
-      Periodic refresh only when a servo screen is selected.
-      The intro screen remains static to reduce OLED activity.
-    */
-    if (millis() - lastDisplayUpdate >= DISPLAY_UPDATE_MS)
-    {
-        lastDisplayUpdate = millis();
-
-        if (selectedDisplayServo >= 0)
-        {
-            updateServoInfoScreen();
-        }
     }
 }
