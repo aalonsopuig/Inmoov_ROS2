@@ -2,15 +2,16 @@
 
 ## Versions
 
-- [v1.0.0](https://github.com/aalonsopuig/Inmoov_ROS2/releases/tag/v1.0.0) – First stable ROS2 version of the Paul InMoov robot (june 2025)
-- **main** – Current development version
+- [v1.1.0](https://github.com/aalonsopuig/Inmoov_ROS2/releases/tag/v1.1.0) – Second stable release, including hardware improvements to the right arm and Subsystem 1, featuring bicep current monitoring, position feedback, and enhanced safety mechanisms (July 2026).
+- [v1.0.0](https://github.com/aalonsopuig/Inmoov_ROS2/releases/tag/v1.0.0) – First stable ROS 2 release of the Paul InMoov robot (June 2025).
+- **main** – Current development branch.
 
-To use the stable release (v1.0.0):
+To use the last stable release (v1.1.0):
 
 ```bash
 git clone https://github.com/aalonsopuig/Inmoov_ROS2.git
 cd Inmoov_ROS2
-git checkout v1.0.0
+git checkout v1.1.0
 ```
 ---
 ## Welcome
@@ -61,7 +62,7 @@ Each page describes a different aspect of the system architecture, software comp
 
 1. [Architecture Overview](docs/architecture-overview.md): High-level description of the hardware and software architecture of the robot system.
 2. [ROS2 Packages and Nodes](docs/ros2-packages-and-nodes.md): Overview of the ROS2 packages included in the project and the main nodes implemented.
-3. [Arduino Subsystems](docs/arduino-subsystems.md): Description of the Arduino-based servo control subsystems and their integration with ROS2.
+3. [Control Subsystems](docs/control_subsystems.md): Description of the Arduino-based servo control subsystems hardware integration and software.
 4. [Repository Structure](docs/repository-structure.md): Explanation of the repository organization and the purpose of each directory.
 5. [Installation](docs/installation.md): Step-by-step guide to install dependencies and set up the development environment.
 6. [Usage](docs/usage.md): Instructions for running the system and launching the main components.
